@@ -21,6 +21,8 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Shift, ShiftReport } from "../api/types";
+import { platform } from "../platform";
+import { printShiftReport } from "../receipt/receipt";
 
 function money(v: string | number | null | undefined) {
   if (v === null || v === undefined) return "—";
@@ -184,6 +186,32 @@ export function ShiftPage() {
             onClick={() => setCashOpen(true)}
           >
             Cash in / out
+          </Button>
+          <Button
+            variant="default"
+            onClick={async () => {
+              const result = await platform.openCashDrawer();
+              if (!result.success) {
+                notifications.show({
+                  title: "Could not open drawer",
+                  message: result.error ?? "No thermal printer configured.",
+                  color: "red",
+                });
+              }
+            }}
+          >
+            Open drawer
+          </Button>
+          <Button
+            variant="default"
+            leftSection={<IconReceipt size={16} />}
+            onClick={async () => {
+              if (!report) return;
+              const result = await printShiftReport(report, "X");
+              if (!result.success) window.print();
+            }}
+          >
+            Print X
           </Button>
           <Button
             color="orange"
@@ -418,7 +446,17 @@ function ZReportCard({
         <Button variant="default" onClick={onDismiss}>
           Dismiss
         </Button>
-        <Button onClick={() => window.print()}>Print</Button>
+        <Button
+          onClick={async () => {
+            const result = await printShiftReport(report, "Z");
+            if (!result.success) {
+              // No thermal printer — fall back to the browser dialog.
+              window.print();
+            }
+          }}
+        >
+          Print Z report
+        </Button>
       </Group>
     </Card>
   );

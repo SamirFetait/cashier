@@ -1,5 +1,6 @@
-import type { Order } from "../api/types";
+import type { Order, ShiftReport } from "../api/types";
 import { platform } from "../platform";
+import { orderToEscPos, shiftReportToEscPos } from "./escposReceipt";
 
 const STORE_NAME = "Cashier POS";
 
@@ -85,6 +86,32 @@ function escapeHtml(s: string): string {
   );
 }
 
-export async function printOrderReceipt(order: Order): Promise<void> {
-  await platform.printReceipt(buildReceiptHtml(order));
+/**
+ * Print a sale.
+ *
+ * Prefers the thermal printer (silent, instant, and can kick the drawer) and
+ * falls back to the HTML print dialog when no ESC/POS printer is configured
+ * or it fails — a printer fault must never block the queue.
+ */
+export async function printOrderReceipt(
+  order: Order,
+  opts: { copy?: boolean; openDrawer?: boolean } = {}
+): Promise<void> {
+  const thermal = await platform.printEscPos(orderToEscPos(order, opts));
+  if (!thermal.success) {
+    await platform.printReceipt(buildReceiptHtml(order, opts));
+    return;
+  }
+  // Only pop the drawer when cash actually changed hands.
+  const tookCash = (order.payments ?? []).some((p) => p.method === "CASH");
+  if (opts.openDrawer ?? tookCash) {
+    await platform.openCashDrawer();
+  }
+}
+
+export async function printShiftReport(
+  report: ShiftReport,
+  kind: "X" | "Z"
+): Promise<{ success: boolean; error?: string }> {
+  return platform.printEscPos(shiftReportToEscPos(report, kind));
 }

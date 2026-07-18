@@ -1,4 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain, safeStorage } from "electron";
+
+import {
+  buildDrawerKick,
+  buildReceipt,
+  sendToPrinter,
+  type PrinterConfig,
+  type ReceiptLine,
+} from "./escpos";
 import { join } from "path";
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 
@@ -67,6 +75,66 @@ ipcMain.handle("auth:clear", () => {
     /* ignore */
   }
   return true;
+});
+
+// --- Thermal printer configuration ---
+// Stored beside the auth file so a terminal keeps its own printer settings.
+function printerFile() {
+  return join(app.getPath("userData"), "printer.json");
+}
+
+function loadPrinterConfig(): PrinterConfig {
+  try {
+    if (existsSync(printerFile())) {
+      return JSON.parse(readFileSync(printerFile(), "utf-8"));
+    }
+  } catch {
+    /* fall through to defaults */
+  }
+  // Env vars let a fleet be provisioned without touching each machine.
+  const host = process.env.PRINTER_HOST;
+  if (host) {
+    return {
+      transport: "network",
+      host,
+      port: Number(process.env.PRINTER_PORT || 9100),
+      width: Number(process.env.PRINTER_WIDTH || 42),
+    };
+  }
+  return { transport: "none" };
+}
+
+ipcMain.handle("printer:get", () => loadPrinterConfig());
+
+ipcMain.handle("printer:set", (_e, config: PrinterConfig) => {
+  writeFileSync(printerFile(), JSON.stringify(config, null, 2), "utf-8");
+  return true;
+});
+
+ipcMain.handle("printer:escpos", async (_e, lines: ReceiptLine[]) => {
+  const config = loadPrinterConfig();
+  if (config.transport === "none") {
+    return { success: false, error: "No thermal printer configured." };
+  }
+  try {
+    await sendToPrinter(buildReceipt(lines, config), config);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+});
+
+ipcMain.handle("printer:kick", async () => {
+  const config = loadPrinterConfig();
+  if (config.transport === "none") {
+    return { success: false, error: "No thermal printer configured." };
+  }
+  try {
+    await sendToPrinter(buildDrawerKick(), config);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
 });
 
 // --- Receipt printing: render HTML in a hidden window and open the print dialog ---

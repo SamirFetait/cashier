@@ -34,6 +34,40 @@ export const platform = {
     }
   },
 
+  /** ESC/POS thermal print. Reports failure rather than throwing so callers
+   *  can fall back to the HTML dialog. */
+  async printEscPos(lines: unknown): Promise<{ success: boolean; error?: string }> {
+    if (!hasElectron || !window.api!.printer) {
+      return { success: false, error: "Not running in Electron." };
+    }
+    try {
+      return await window.api!.printer.escpos(lines);
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  },
+
+  async openCashDrawer(): Promise<{ success: boolean; error?: string }> {
+    if (!hasElectron || !window.api!.printer) {
+      return { success: false, error: "Not running in Electron." };
+    }
+    try {
+      return await window.api!.printer.kick();
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  },
+
+  async getPrinterConfig(): Promise<unknown> {
+    if (!hasElectron || !window.api!.printer) return { transport: "none" };
+    return window.api!.printer.get();
+  },
+
+  async setPrinterConfig(config: unknown): Promise<boolean> {
+    if (!hasElectron || !window.api!.printer) return false;
+    return window.api!.printer.set(config);
+  },
+
   async printReceipt(html: string): Promise<void> {
     if (hasElectron) {
       await window.api!.printReceipt(html);
