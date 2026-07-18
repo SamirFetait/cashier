@@ -63,7 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         login,
         logout,
-        isSuperadmin: user?.role === "SUPERADMIN",
+        // Trust the server's own answer. Checking role alone locked out
+        // Django superusers, whose role stays CASHIER unless set explicitly.
+        isSuperadmin: user?.is_superadmin ?? user?.role === "SUPERADMIN",
       }}
     >
       {children}

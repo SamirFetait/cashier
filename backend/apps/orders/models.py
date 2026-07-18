@@ -15,8 +15,13 @@ class Order(models.Model):
         PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED", "Partially refunded"
 
     class Payment(models.TextChoices):
+        # Must stay in step with Payment.Method: with a split tender this field
+        # is set to the largest tender's method, so anything Payment.Method
+        # accepts can land here.
         CASH = "CASH", "Cash"
         CARD = "CARD", "Card"
+        MOBILE = "MOBILE", "Mobile / wallet"
+        VOUCHER = "VOUCHER", "Voucher"
         OTHER = "OTHER", "Other"
 
     receipt_number = models.CharField(

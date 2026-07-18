@@ -174,7 +174,7 @@ class OrderCreateSerializer(serializers.Serializer):
         queryset=Storage.objects.all(), required=False, allow_null=True
     )
     payment_method = serializers.ChoiceField(
-        choices=["CASH", "CARD", "OTHER"], default="CASH"
+        choices=[c[0] for c in Payment.Method.choices], default="CASH"
     )
     discount = serializers.DecimalField(
         max_digits=12, decimal_places=2, default=ZERO, min_value=ZERO

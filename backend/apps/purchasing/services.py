@@ -33,13 +33,18 @@ def receive_goods(*, purchase_order: PurchaseOrder, user, lines, supplier_refere
     "unit_cost": Decimal | None}]. Over-receiving is refused so a delivery
     cannot quietly inflate stock beyond what was ordered.
     """
+    if not lines:
+        raise serializers.ValidationError("A receipt must include at least one line.")
+
+    # Lock the PO before checking it: two deliveries booked in at the same
+    # moment would otherwise both see the same `outstanding` and between them
+    # receive more than was ever ordered.
+    purchase_order = PurchaseOrder.objects.select_for_update().get(pk=purchase_order.pk)
     if not purchase_order.is_open:
         raise serializers.ValidationError(
             f"PO {purchase_order.number} is {purchase_order.get_status_display()} "
             "and cannot receive more goods."
         )
-    if not lines:
-        raise serializers.ValidationError("A receipt must include at least one line.")
 
     receipt = GoodsReceipt.objects.create(
         number=Sequence.next_value("receipt_goods", prefix="GR", padding=5),
@@ -54,6 +59,9 @@ def receive_goods(*, purchase_order: PurchaseOrder, user, lines, supplier_refere
         qty = Decimal(line["quantity"])
         if po_item.purchase_order_id != purchase_order.pk:
             raise serializers.ValidationError("That line does not belong to this PO.")
+        # Loaded before we took the PO lock, so its quantity_received may be
+        # one delivery out of date.
+        po_item.refresh_from_db()
         if qty <= ZERO:
             raise serializers.ValidationError("Received quantity must be greater than zero.")
         if qty > po_item.outstanding:

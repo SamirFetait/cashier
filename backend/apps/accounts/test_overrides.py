@@ -49,6 +49,48 @@ class OverrideBase(APITestCase):
         return resp.data
 
 
+class SuperuserRoleTests(OverrideBase):
+    """A Django superuser must be a full admin in the UI as well as the API.
+
+    Regression: createsuperuser sets is_superuser but left role at CASHIER,
+    and the frontend keyed off role alone — so the account had API access
+    while every admin screen was hidden from it.
+    """
+
+    def test_createsuperuser_sets_the_role(self):
+        user = User.objects.create_superuser("newboss", password="pass12345")
+        self.assertEqual(user.role, User.Role.SUPERADMIN)
+        self.assertTrue(user.is_superadmin)
+
+    def test_superuser_flag_alone_still_counts_as_admin(self):
+        legacy = User.objects.create_user(
+            username="legacy", password="pass12345", role=User.Role.CASHIER
+        )
+        legacy.is_superuser = True
+        legacy.save()
+        self.assertTrue(legacy.is_superadmin)
+
+    def test_login_response_exposes_is_superadmin(self):
+        User.objects.create_superuser("apiboss", password="pass12345")
+        resp = self.client.post(
+            "/api/auth/login/",
+            {"username": "apiboss", "password": "pass12345"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertTrue(resp.data["user"]["is_superadmin"])
+
+    def test_legacy_superuser_can_reach_admin_endpoints(self):
+        legacy = User.objects.create_user(
+            username="legacy2", password="pass12345", role=User.Role.CASHIER
+        )
+        legacy.is_superuser = True
+        legacy.save()
+        self.client.force_authenticate(user=legacy)
+        for path in ["/api/users/", "/api/reports/margin/", "/api/audit-log/"]:
+            self.assertEqual(self.client.get(path).status_code, 200, path)
+
+
 class PinStorageTests(OverrideBase):
     def test_pin_is_hashed_not_stored_raw(self):
         self.manager.refresh_from_db()

@@ -9,6 +9,9 @@ export interface User {
   phone_number: string;
   role: Role;
   is_active: boolean;
+  /** Server-computed: role is SUPERADMIN *or* the account is a Django superuser. */
+  is_superadmin?: boolean;
+  has_override_pin?: boolean;
   date_joined: string;
 }
 

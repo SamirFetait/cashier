@@ -12,15 +12,19 @@ class UserSerializer(serializers.ModelSerializer):
         write_only=True, required=False, allow_blank=True, min_length=4, max_length=12
     )
     has_override_pin = serializers.SerializerMethodField()
+    # Exposed so the UI does not re-derive the rule. A Django superuser
+    # created with createsuperuser has is_superuser=True but role=CASHIER,
+    # and checking role alone would hide every admin screen from them.
+    is_superadmin = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
         fields = [
             "id", "username", "first_name", "last_name", "email",
-            "phone_number", "role", "is_active", "password",
+            "phone_number", "role", "is_active", "is_superadmin", "password",
             "override_pin", "has_override_pin", "date_joined",
         ]
-        read_only_fields = ["date_joined"]
+        read_only_fields = ["date_joined", "is_superadmin"]
 
     def get_has_override_pin(self, obj) -> bool:
         return bool(obj.override_pin)

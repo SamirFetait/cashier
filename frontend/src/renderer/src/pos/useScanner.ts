@@ -10,9 +10,21 @@ import { useEffect, useRef } from "react";
  */
 export function useScanner(
   onScan: (code: string) => void,
-  options: { enabled?: boolean; maxKeyIntervalMs?: number; minLength?: number } = {}
+  options: {
+    enabled?: boolean;
+    maxKeyIntervalMs?: number;
+    minLength?: number;
+    maxEnterDelayMs?: number;
+  } = {}
 ) {
-  const { enabled = true, maxKeyIntervalMs = 50, minLength = 3 } = options;
+  const {
+    enabled = true,
+    maxKeyIntervalMs = 50,
+    minLength = 3,
+    // Scanners commonly hold the terminating Enter back by a few tens of
+    // milliseconds; that pause must not be read as "a human typed this".
+    maxEnterDelayMs = 250,
+  } = options;
   const buffer = useRef("");
   const lastKeyAt = useRef(0);
   const handler = useRef(onScan);
@@ -27,32 +39,40 @@ export function useScanner(
       // manual quantity. The dedicated scan box opts back in via data-scan.
       const isTyping =
         target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable) &&
         target.getAttribute("data-scan") !== "true";
 
       const now = Date.now();
       const gap = now - lastKeyAt.current;
       lastKeyAt.current = now;
 
-      if (gap > maxKeyIntervalMs) buffer.current = "";
-
       if (event.key === "Enter") {
         const code = buffer.current;
         buffer.current = "";
-        if (code.length >= minLength) {
-          // Fast burst ending in Enter — treat as a scan even mid-typing.
-          if (!isTyping || gap <= maxKeyIntervalMs) {
-            event.preventDefault();
-            handler.current(code);
-          }
+        // The buffer only ever reaches minLength if the characters arrived at
+        // machine speed, so its length is the real evidence of a scan. Enter
+        // itself only has to be prompt, not instant.
+        if (code.length >= minLength && gap <= maxEnterDelayMs) {
+          event.preventDefault();
+          handler.current(code);
         }
         return;
       }
 
-      if (event.key.length === 1) buffer.current += event.key;
+      // A pause means a new burst: anything buffered was not part of this one.
+      if (gap > maxKeyIntervalMs) buffer.current = "";
+
+      // Modifier combos (Ctrl+V and friends) are not scanner output, and would
+      // otherwise leave stray characters in the buffer.
+      if (event.key.length === 1) {
+        if (event.ctrlKey || event.metaKey || event.altKey) buffer.current = "";
+        else buffer.current += event.key;
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [enabled, maxKeyIntervalMs, minLength]);
+  }, [enabled, maxKeyIntervalMs, minLength, maxEnterDelayMs]);
 }

@@ -148,8 +148,21 @@ def create_return(
 
         # Refund at the price actually charged, net of any discount given on
         # that line, so a discounted item is not refunded at full price.
-        effective_unit = (item.line_total / item.quantity).quantize(MONEY)
-        line_refund = (effective_unit * qty).quantize(MONEY)
+        #
+        # Rounding the per-unit price first and multiplying back up does not
+        # reconcile: 20.00 over 3 units is 6.67 each, and refunding all three
+        # would pay out 20.01. Apportion from the line total instead, and let
+        # the last return on a line take exactly what is left, so the sum of
+        # refunds against a line can never differ from what was charged.
+        refunded_so_far = sum(
+            (ri.line_refund for ri in item.return_items.all()), ZERO
+        )
+        refundable = _money(item.line_total - refunded_so_far)
+        if qty == remaining:
+            line_refund = refundable
+        else:
+            line_refund = min(_money(item.line_total * qty / item.quantity), refundable)
+        effective_unit = _money(line_refund / qty)
         refund_total += line_refund
 
         ReturnItem.objects.create(

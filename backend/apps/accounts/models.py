@@ -1,10 +1,24 @@
 from django.contrib.auth.hashers import check_password, make_password
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager as DjangoUserManager
 from django.db import models
+
+
+class UserManager(DjangoUserManager):
+    def create_superuser(self, username, email=None, password=None, **extra):
+        """Keep `role` in step with Django's is_superuser flag.
+
+        createsuperuser only sets is_superuser, leaving role at its CASHIER
+        default — which used to leave the new admin looking like a cashier in
+        the UI. Defaulting the role here means the two can't drift apart.
+        """
+        extra.setdefault("role", User.Role.SUPERADMIN)
+        return super().create_superuser(username, email, password, **extra)
 
 
 class User(AbstractUser):
     """Store staff account. Role drives API permissions."""
+
+    objects = UserManager()
 
     class Role(models.TextChoices):
         SUPERADMIN = "SUPERADMIN", "Super Admin"

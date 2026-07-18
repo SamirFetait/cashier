@@ -85,8 +85,12 @@ def shift_report(shift: Shift) -> dict:
     sales = orders.filter(status=Order.Status.COMPLETED)
     sales_agg = sales.aggregate(total=Sum("total"), count=Count("id"))
 
+    # A voided sale is reversed in full, drawer included, so its tenders must
+    # not appear here either — otherwise the payment breakdown overstates the
+    # takings and no longer reconciles with sales_total.
     payment_rows = (
         Payment.objects.filter(order__shift=shift)
+        .exclude(order__status__in=[Order.Status.VOIDED, Order.Status.CANCELLED])
         .values("method")
         .annotate(total=Sum("amount"), count=Count("id"))
         .order_by("method")
@@ -138,13 +142,16 @@ def close_shift(*, shift: Shift, user, counted_cash, note: str = "") -> dict:
     Returns the Z report. The variance is persisted so a short drawer is
     permanently attributable.
     """
-    if not shift.is_open:
-        raise serializers.ValidationError(f"Shift {shift.number} is already closed.")
     counted = Decimal(counted_cash if counted_cash is not None else 0)
     if counted < ZERO:
         raise serializers.ValidationError("Counted cash cannot be negative.")
 
+    # Take the lock before testing the status: two supervisors hitting close at
+    # once would otherwise both pass the check and the second would overwrite
+    # the first one's variance.
     locked = Shift.objects.select_for_update().get(pk=shift.pk)
+    if not locked.is_open:
+        raise serializers.ValidationError(f"Shift {locked.number} is already closed.")
     expected = expected_cash(locked)
 
     locked.counted_cash = counted

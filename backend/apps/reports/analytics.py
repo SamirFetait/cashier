@@ -191,7 +191,10 @@ def hourly_report(start, end) -> dict:
         }
         for h in range(24)
     ]
-    busiest = max(data, key=lambda d: Decimal(d["total"])) if data else None
+    # With no trade at all every hour ties on zero and max() would report
+    # midnight as the busiest hour, which reads as a real finding.
+    traded = [d for d in data if d["order_count"]]
+    busiest = max(traded, key=lambda d: Decimal(d["total"])) if traded else None
     return {
         "from": start.isoformat(),
         "to": end.isoformat(),
