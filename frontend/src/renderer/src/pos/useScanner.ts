@@ -35,14 +35,17 @@ export function useScanner(
 
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      // Let a real text field win — the cashier may be typing a note or a
-      // manual quantity. The dedicated scan box opts back in via data-scan.
-      const isTyping =
-        target &&
+      const inTextField =
+        !!target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
-          target.isContentEditable) &&
-        target.getAttribute("data-scan") !== "true";
+          target.isContentEditable);
+
+      // The dedicated scan box handles its own Enter, because it must also
+      // accept a barcode typed in by hand when a label will not scan. Firing
+      // here as well would add the item twice on every scan — and since the
+      // till keeps that box focused, that is the normal path, not an edge case.
+      if (inTextField && target!.getAttribute("data-scan") === "true") return;
 
       const now = Date.now();
       const gap = now - lastKeyAt.current;
@@ -52,9 +55,10 @@ export function useScanner(
         const code = buffer.current;
         buffer.current = "";
         // The buffer only ever reaches minLength if the characters arrived at
-        // machine speed, so its length is the real evidence of a scan. Enter
-        // itself only has to be prompt, not instant.
-        if (code.length >= minLength && gap <= maxEnterDelayMs) {
+        // machine speed, so its length is the real evidence of a scan; Enter
+        // itself only has to be prompt, not instant. Any other text field is
+        // left alone — the cashier may be typing a note or a quantity there.
+        if (!inTextField && code.length >= minLength && gap <= maxEnterDelayMs) {
           event.preventDefault();
           handler.current(code);
         }
