@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers
 
@@ -8,6 +9,8 @@ from apps.common.models import Sequence, record_audit
 from apps.customers.models import Customer
 from apps.inventory.models import StockItem, Storage, apply_stock_change
 from apps.products.models import Product
+
+from .models import Payment
 
 ZERO = Decimal("0")
 MONEY = Decimal("0.01")
@@ -41,6 +44,32 @@ class OrderItemInputSerializer(serializers.Serializer):
         return attrs
 
 
+class PaymentInputSerializer(serializers.Serializer):
+    method = serializers.ChoiceField(choices=[c[0] for c in Payment.Method.choices])
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.01"))
+    tendered = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, default=ZERO, min_value=ZERO
+    )
+    reference = serializers.CharField(max_length=120, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs["method"] == Payment.Method.CASH:
+            tendered = attrs.get("tendered") or ZERO
+            # Cash must cover the amount it settles, otherwise change is a fiction.
+            if tendered and tendered < attrs["amount"]:
+                raise serializers.ValidationError(
+                    {"tendered": "Cash tendered is less than the amount being paid."}
+                )
+        return attrs
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ["id", "method", "amount", "tendered", "change", "reference", "created_at"]
+        read_only_fields = fields
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
     product_unit = serializers.CharField(source="product.unit", read_only=True)
@@ -58,9 +87,17 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
+    payments = PaymentSerializer(many=True, read_only=True)
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     created_by_username = serializers.CharField(
         source="created_by.username", read_only=True
+    )
+    shift_number = serializers.CharField(source="shift.number", read_only=True)
+    amount_paid = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    change_given = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
     )
 
     class Meta:
@@ -69,8 +106,9 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             "id", "receipt_number", "customer", "customer_name", "storage",
-            "created_by", "created_by_username", "status", "payment_method",
-            "subtotal", "discount", "tax", "total", "note", "items", "created_at",
+            "created_by", "created_by_username", "shift", "shift_number",
+            "status", "payment_method", "subtotal", "discount", "tax", "total",
+            "amount_paid", "change_given", "note", "items", "payments", "created_at",
         ]
         read_only_fields = fields
 
@@ -92,7 +130,9 @@ class OrderCreateSerializer(serializers.Serializer):
         max_digits=12, decimal_places=2, default=ZERO, min_value=ZERO
     )
     note = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    terminal = serializers.CharField(max_length=64, required=False, allow_blank=True)
     items = OrderItemInputSerializer(many=True)
+    payments = PaymentInputSerializer(many=True, required=False)
 
     def validate_items(self, value):
         if not value:
@@ -110,7 +150,45 @@ class OrderCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"discount": f"Order discount exceeds the net subtotal ({subtotal})."}
             )
+
+        total = subtotal - attrs.get("discount", ZERO) + attrs.get("tax", ZERO)
+        payments = attrs.get("payments") or []
+        if payments:
+            paid = sum((p["amount"] for p in payments), ZERO)
+            if paid != total:
+                raise serializers.ValidationError(
+                    {"payments": f"Payments total {paid} but the order total is {total}."}
+                )
+        attrs["_computed_total"] = total
         return attrs
+
+    def _primary_method(self, payments, validated):
+        """Denormalised 'headline' method, kept for reporting and back-compat.
+
+        With split tenders the Payment rows are authoritative; this is just the
+        largest one so existing payment-breakdown reports stay meaningful.
+        """
+        if not payments:
+            return validated.get("payment_method", "CASH")
+        return max(payments, key=lambda p: p["amount"])["method"]
+
+    def _resolve_shift(self, validated, payments):
+        """Bind the sale to the open till session.
+
+        Cash must land in a drawer that someone is accountable for, so a cash
+        sale without an open shift is refused rather than silently unattributed.
+        """
+        from apps.shifts.services import active_shift
+
+        shift = active_shift(terminal=validated.get("terminal", ""))
+        if shift:
+            return shift
+        takes_cash = any(p["method"] == Payment.Method.CASH for p in payments)
+        if takes_cash or getattr(settings, "REQUIRE_OPEN_SHIFT", False):
+            raise serializers.ValidationError(
+                "No shift is open on this terminal. Open a shift before taking payment."
+            )
+        return None
 
     def _resolve_storage(self, validated):
         storage = validated.get("storage")
@@ -132,13 +210,16 @@ class OrderCreateSerializer(serializers.Serializer):
         storage = self._resolve_storage(validated_data)
         discount = validated_data.get("discount") or ZERO
         tax = validated_data.get("tax") or ZERO
+        payments = validated_data.get("payments") or []
+        shift = self._resolve_shift(validated_data, payments)
 
         order = Order.objects.create(
             receipt_number=Sequence.next_value("receipt", prefix="R"),
             customer=validated_data.get("customer"),
             storage=storage,
             created_by=user,
-            payment_method=validated_data.get("payment_method", "CASH"),
+            shift=shift,
+            payment_method=self._primary_method(payments, validated_data),
             discount=discount,
             tax=tax,
             note=validated_data.get("note", ""),
@@ -188,6 +269,8 @@ class OrderCreateSerializer(serializers.Serializer):
         order.total = subtotal - discount + tax
         order.save(update_fields=["subtotal", "total"])
 
+        self._record_payments(order, payments, shift, user)
+
         total_discount = discount + sum(
             (line.get("discount") or ZERO) for line in validated_data["items"]
         )
@@ -200,6 +283,42 @@ class OrderCreateSerializer(serializers.Serializer):
                 detail={"order_discount": str(discount), "total_discount": str(total_discount)},
             )
         return order
+
+    def _record_payments(self, order, payments, shift, user):
+        """Write the tender rows and push cash into the drawer.
+
+        Only the `amount` settles the order; `tendered - change` nets to the
+        same figure, so the drawer balances regardless of how much the customer
+        handed over.
+        """
+        from apps.shifts.models import CashMovement
+
+        for entry in payments:
+            method = entry["method"]
+            amount = entry["amount"]
+            tendered = entry.get("tendered") or ZERO
+            change = ZERO
+            if method == Payment.Method.CASH:
+                # A blank `tendered` means exact money.
+                tendered = tendered or amount
+                change = tendered - amount
+            Payment.objects.create(
+                order=order,
+                method=method,
+                amount=amount,
+                tendered=tendered if method == Payment.Method.CASH else ZERO,
+                change=change,
+                reference=entry.get("reference", ""),
+            )
+            if method == Payment.Method.CASH and shift is not None:
+                CashMovement.objects.create(
+                    shift=shift,
+                    kind=CashMovement.Kind.SALE,
+                    amount=amount,
+                    order=order,
+                    reason=f"Sale {order.receipt_number}",
+                    created_by=user,
+                )
 
     def to_representation(self, instance):
         return OrderSerializer(instance, context=self.context).data

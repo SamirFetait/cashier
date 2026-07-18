@@ -34,6 +34,11 @@ class Order(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, related_name="orders",
     )
+    shift = models.ForeignKey(
+        "shifts.Shift", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="orders",
+        help_text="Till session this sale belongs to",
+    )
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.COMPLETED
     )
@@ -54,6 +59,14 @@ class Order(models.Model):
         return f"Order {self.receipt_number or f'#{self.pk}'} — {self.total}"
 
     @property
+    def amount_paid(self) -> Decimal:
+        return sum((p.amount for p in self.payments.all()), Decimal("0"))
+
+    @property
+    def change_given(self) -> Decimal:
+        return sum((p.change for p in self.payments.all()), Decimal("0"))
+
+    @property
     def line_discount_total(self) -> Decimal:
         return sum((i.discount for i in self.items.all()), Decimal("0"))
 
@@ -64,6 +77,35 @@ class Order(models.Model):
     @property
     def gross_margin(self) -> Decimal:
         return self.total - self.tax - self.cost_total
+
+
+class Payment(models.Model):
+    """One tender against an order. An order may have several (split payment)."""
+
+    class Method(models.TextChoices):
+        CASH = "CASH", "Cash"
+        CARD = "CARD", "Card"
+        MOBILE = "MOBILE", "Mobile / wallet"
+        VOUCHER = "VOUCHER", "Voucher"
+        OTHER = "OTHER", "Other"
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="payments")
+    method = models.CharField(max_length=20, choices=Method.choices)
+    amount = money_field(help_text="Amount applied to the order total")
+    # For cash: what the customer handed over, and what went back to them.
+    # tendered - change == amount, so the drawer maths always balances.
+    tendered = money_field(default=Decimal("0"))
+    change = money_field(default=Decimal("0"))
+    reference = models.CharField(
+        max_length=120, blank=True, help_text="Card auth code / transaction id"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.get_method_display()} {self.amount}"
 
 
 class OrderItem(models.Model):
