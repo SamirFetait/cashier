@@ -31,6 +31,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { Customer, Order, Paginated, Product, Shift } from "../api/types";
 import { PaymentModal, TenderLine } from "../pos/PaymentModal";
+import { enqueue, isOfflineError, newClientUuid } from "../pos/offlineQueue";
 import { useScanner } from "../pos/useScanner";
 import { printOrderReceipt } from "../receipt/receipt";
 
@@ -52,6 +53,69 @@ const HELD_KEY = "cashier.heldSales";
 
 function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * A receipt for a sale the server has not seen yet.
+ *
+ * The customer still needs paper, so we synthesise an Order shape locally.
+ * It carries no receipt number — that is issued by the server when the queue
+ * syncs — and is marked so nobody mistakes it for a filed sale.
+ */
+function buildOfflineOrder(
+  payload: any,
+  payments: TenderLine[],
+  total: number,
+  products: Product[]
+): Order {
+  return {
+    id: 0,
+    receipt_number: null,
+    customer: payload.customer,
+    customer_name: null,
+    storage: 0,
+    created_by: null,
+    created_by_username: null,
+    shift: null,
+    shift_number: null,
+    status: "COMPLETED",
+    payment_method: payments[0]?.method ?? "CASH",
+    subtotal: String(total + Number(payload.discount || 0)),
+    discount: String(payload.discount || 0),
+    tax: "0",
+    total: String(total),
+    amount_paid: String(total),
+    change_given: String(
+      payments.reduce((s, p) => s + Math.max(0, (p.tendered ?? 0) - p.amount), 0)
+    ),
+    note: "OFFLINE — awaiting sync",
+    items: payload.items.map((line: any, index: number) => {
+      const product = products[index];
+      return {
+        id: index,
+        product: line.product,
+        product_name: product?.name ?? `Item ${line.product}`,
+        product_unit: product?.unit ?? "",
+        sold_by: product?.sold_by ?? "UNIT",
+        quantity: String(line.quantity),
+        unit_price: String(product?.price ?? "0"),
+        discount: String(line.discount || 0),
+        line_total: String(
+          Number(product?.price ?? 0) * Number(line.quantity) - Number(line.discount || 0)
+        ),
+      };
+    }),
+    payments: payments.map((p, i) => ({
+      id: i,
+      method: p.method,
+      amount: String(p.amount),
+      tendered: String(p.tendered ?? 0),
+      change: String(Math.max(0, (p.tendered ?? 0) - p.amount)),
+      reference: p.reference ?? "",
+      created_at: new Date().toISOString(),
+    })),
+    created_at: new Date().toISOString(),
+  };
 }
 
 function loadHeld(): HeldSale[] {
@@ -221,23 +285,28 @@ export function NewOrder() {
 
   async function checkout(payments: TenderLine[], pin = "") {
     setSubmitting(true);
+    // Minted before the first attempt so a retry — or an offline replay —
+    // cannot ring the same sale up twice.
+    const clientUuid = newClientUuid();
+    const payload = {
+      customer: customerId ? Number(customerId) : null,
+      discount: orderDiscount,
+      override_pin: pin,
+      client_uuid: clientUuid,
+      items: cart.map((l) => ({
+        product: l.product.id,
+        quantity: l.quantity,
+        discount: l.discount,
+      })),
+      payments: payments.map((p) => ({
+        method: p.method,
+        amount: p.amount,
+        tendered: p.tendered ?? 0,
+        reference: p.reference ?? "",
+      })),
+    };
     try {
-      const resp = await api.post<Order>("/orders/", {
-        customer: customerId ? Number(customerId) : null,
-        discount: orderDiscount,
-        override_pin: pin,
-        items: cart.map((l) => ({
-          product: l.product.id,
-          quantity: l.quantity,
-          discount: l.discount,
-        })),
-        payments: payments.map((p) => ({
-          method: p.method,
-          amount: p.amount,
-          tendered: p.tendered ?? 0,
-          reference: p.reference ?? "",
-        })),
-      });
+      const resp = await api.post<Order>("/orders/", payload);
       const change = Number(resp.data.change_given || 0);
       notifications.show({
         title: `Sale ${resp.data.receipt_number}`,
@@ -254,6 +323,24 @@ export function NewOrder() {
       qc.invalidateQueries({ queryKey: ["summary"] });
       qc.invalidateQueries({ queryKey: ["shift"] });
     } catch (err: any) {
+      // Network down: bank the sale locally rather than losing it. The
+      // customer is served now and the queue syncs when the link returns.
+      if (isOfflineError(err)) {
+        enqueue(clientUuid, payload);
+        const offlineOrder = buildOfflineOrder(
+          payload, payments, total, cart.map((l) => l.product)
+        );
+        notifications.show({
+          title: "Saved offline",
+          message: "No connection — this sale will sync automatically.",
+          color: "yellow",
+        });
+        await printOrderReceipt(offlineOrder);
+        setPayOpen(false);
+        clearSale();
+        setSubmitting(false);
+        return;
+      }
       const data = err?.response?.data;
       // The server decides what counts as a "large" discount; when it asks for
       // a supervisor we prompt rather than duplicating the threshold here.

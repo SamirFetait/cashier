@@ -185,6 +185,8 @@ class OrderCreateSerializer(serializers.Serializer):
     note = serializers.CharField(max_length=255, required=False, allow_blank=True)
     terminal = serializers.CharField(max_length=64, required=False, allow_blank=True)
     override_pin = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    client_uuid = serializers.UUIDField(required=False, allow_null=True)
+    was_offline = serializers.BooleanField(default=False)
     items = OrderItemInputSerializer(many=True)
     payments = PaymentInputSerializer(many=True, required=False)
 
@@ -283,6 +285,8 @@ class OrderCreateSerializer(serializers.Serializer):
 
         order = Order.objects.create(
             receipt_number=Sequence.next_value("receipt", prefix="R"),
+            client_uuid=validated_data.get("client_uuid"),
+            was_offline=validated_data.get("was_offline", False),
             customer=validated_data.get("customer"),
             storage=storage,
             created_by=user,

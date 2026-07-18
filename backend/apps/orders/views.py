@@ -39,6 +39,23 @@ class OrderViewSet(viewsets.ModelViewSet):
             return OrderCreateSerializer
         return OrderSerializer
 
+    def create(self, request, *args, **kwargs):
+        """Checkout, made idempotent by the terminal's client_uuid.
+
+        A till replaying its offline queue — or retrying a request that in fact
+        succeeded — must not ring the sale up twice. Returning the original
+        order (200 rather than 201) lets the client settle its queue.
+        """
+        client_uuid = request.data.get("client_uuid")
+        if client_uuid:
+            existing = Order.objects.filter(client_uuid=client_uuid).first()
+            if existing:
+                return Response(
+                    OrderSerializer(existing, context={"request": request}).data,
+                    status=200,
+                )
+        return super().create(request, *args, **kwargs)
+
     @action(detail=True, methods=["post"])
     def void(self, request, pk=None):
         serializer = VoidSerializer(data=request.data)

@@ -22,6 +22,7 @@ import { NavLink as RouterNavLink, useLocation, useNavigate } from "react-router
 import { api } from "../api/client";
 import type { BranchInfo } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { OfflineIndicator } from "./OfflineIndicator";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface NavItem {
@@ -74,6 +75,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             )}
           </Group>
           <Group>
+            <OfflineIndicator />
             <ThemeToggle />
             <Text size="sm">{user?.username}</Text>
             <Badge color={isSuperadmin ? "grape" : "blue"}>{user?.role}</Badge>
