@@ -6,6 +6,8 @@ import { useAuth } from "./auth/AuthContext";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { NewOrder } from "./pages/NewOrder";
+import { Orders } from "./pages/Orders";
+import { ShiftPage } from "./pages/ShiftPage";
 import { Products } from "./pages/Products";
 import { Customers } from "./pages/Customers";
 import { Suppliers } from "./pages/Suppliers";
@@ -30,6 +32,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/new-order" element={<NewOrder />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/shift" element={<ShiftPage />} />
         <Route path="/products" element={<Products />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/suppliers" element={<Suppliers />} />

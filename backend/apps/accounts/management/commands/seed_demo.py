@@ -6,10 +6,12 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
+from apps.common.models import Sequence
 from apps.customers.models import Customer
 from apps.inventory.models import StockItem, Storage, apply_stock_change
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import Order, OrderItem, Payment
 from apps.products.models import Category, Product
+from apps.shifts.models import Shift
 from apps.suppliers.models import Supplier
 
 User = get_user_model()
@@ -41,18 +43,40 @@ class Command(BaseCommand):
             name="Main Store", defaults={"is_default": True, "address": "Front counter"}
         )
 
+        # (name, price, stock, barcode, unit, sold_by) — barcodes let the
+        # scanner be demoed; the deli items exercise weighed goods.
         catalog = {
-            "Beverages": [("Cola 330ml", "5.00", 100), ("Water 600ml", "3.00", 200)],
-            "Snacks": [("Chips", "10.00", 60), ("Chocolate Bar", "12.50", 40)],
-            "Grocery": [("Rice 1kg", "25.00", 30), ("Sugar 1kg", "22.00", 8)],
+            "Beverages": [
+                ("Cola 330ml", "5.00", 100, "5000112637922", "pcs", Product.SoldBy.UNIT),
+                ("Water 600ml", "3.00", 200, "5000112637939", "pcs", Product.SoldBy.UNIT),
+            ],
+            "Snacks": [
+                ("Chips", "10.00", 60, "5900259127204", "pcs", Product.SoldBy.UNIT),
+                ("Chocolate Bar", "12.50", 40, "7622210951965", "pcs", Product.SoldBy.UNIT),
+            ],
+            "Grocery": [
+                ("Rice 1kg", "25.00", 30, "8901030865278", "pcs", Product.SoldBy.UNIT),
+                ("Sugar 1kg", "22.00", 8, "8901030865285", "pcs", Product.SoldBy.UNIT),
+            ],
+            "Deli": [
+                ("Cheddar Cheese", "80.00", 15, "2000000000015", "kg", Product.SoldBy.WEIGHT),
+                ("Olives", "45.00", 10, "2000000000022", "kg", Product.SoldBy.WEIGHT),
+            ],
         }
         products = []
         for cat_name, items in catalog.items():
             category, _ = Category.objects.get_or_create(name=cat_name)
-            for name, price, qty in items:
+            for name, price, qty, barcode, unit, sold_by in items:
                 product, _ = Product.objects.get_or_create(
                     name=name,
-                    defaults={"category": category, "price": Decimal(price), "cost": Decimal(price) * Decimal("0.6")},
+                    defaults={
+                        "category": category,
+                        "price": Decimal(price),
+                        "cost": Decimal(price) * Decimal("0.6"),
+                        "barcode": barcode,
+                        "unit": unit,
+                        "sold_by": sold_by,
+                    },
                 )
                 stock, _ = StockItem.objects.get_or_create(
                     product=product, storage=storage,
@@ -76,23 +100,43 @@ class Command(BaseCommand):
 
         if not Order.objects.exists():
             now = timezone.now()
+            # Historic sales belong to a closed shift so the demo data looks
+            # like a real trading history rather than orphaned orders.
+            history_shift = Shift.objects.create(
+                number=Sequence.next_value("shift", prefix="S", padding=5),
+                terminal="Till 1",
+                opened_by=cashier,
+                opening_float=Decimal("100.00"),
+                status=Shift.Status.CLOSED,
+                closed_by=admin,
+                closed_at=now,
+            )
             for i in range(8):
                 created_at = now - timedelta(days=i * 11)
                 product = products[i % len(products)]
-                qty = (i % 3) + 1
+                qty = Decimal("0.500") if product.is_weighed else Decimal((i % 3) + 1)
                 order = Order.objects.create(
+                    receipt_number=Sequence.next_value("receipt", prefix="R"),
                     customer=customer if i % 2 == 0 else None,
                     storage=storage, created_by=cashier,
-                    payment_method="CASH",
+                    shift=history_shift,
+                    payment_method="CASH" if i % 3 else "CARD",
                 )
-                line_total = product.price * qty
+                line_total = (product.price * qty).quantize(Decimal("0.01"))
                 OrderItem.objects.create(
                     order=order, product=product, quantity=qty,
-                    unit_price=product.price, line_total=line_total,
+                    unit_price=product.price, unit_cost=product.cost,
+                    line_total=line_total,
+                )
+                Payment.objects.create(
+                    order=order,
+                    method=order.payment_method,
+                    amount=line_total,
+                    tendered=line_total if order.payment_method == "CASH" else Decimal("0"),
                 )
                 apply_stock_change(
                     product=product, storage=storage, change=-qty,
-                    reason="SALE", reference=f"order:{order.pk}", user=cashier,
+                    reason="SALE", reference=order.receipt_number, user=cashier,
                 )
                 order.subtotal = line_total
                 order.total = line_total

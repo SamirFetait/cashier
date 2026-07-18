@@ -10,6 +10,8 @@ import {
   IconLogout,
   IconBuildingStore,
   IconReportAnalytics,
+  IconReceipt,
+  IconCashRegister,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -30,6 +32,8 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: <IconLayoutDashboard size={18} /> },
   { to: "/new-order", label: "New Order", icon: <IconShoppingCart size={18} /> },
+  { to: "/orders", label: "Orders", icon: <IconReceipt size={18} /> },
+  { to: "/shift", label: "Shift & Drawer", icon: <IconCashRegister size={18} /> },
   { to: "/products", label: "Products & Storage", icon: <IconBox size={18} /> },
   { to: "/customers", label: "Customers", icon: <IconUsers size={18} /> },
   { to: "/suppliers", label: "Suppliers", icon: <IconTruck size={18} /> },
