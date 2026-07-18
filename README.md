@@ -9,19 +9,67 @@ to a central HQ** service that aggregates and compares all branches.
 
 ## Features
 
-- **Roles** — Super Admin (full CRUD) and Cashier (read-only catalog, can ring up sales).
-- **Products & inventory** — categories, products, multiple storage locations, and a stock
-  **ledger** (`StockMovement`) so every change is auditable; product stock is derived from it.
-- **Orders (POS)** — transactional checkout that snapshots prices, computes totals, and
-  decrements stock atomically (rolls back if any line is short).
-- **Customers** — with phone, address and order history.
-- **Suppliers + WhatsApp** — send a message to a supplier from inside the app via an embedded
-  WhatsApp session (whatsapp-web.js); pair once by scanning a QR shown in the admin UI.
-- **Dashboard** — monthly sales chart (Recharts), KPI cards, low-stock list, recent orders.
-- **Receipt printing** — prints a formatted receipt after each sale (Electron print dialog / PDF).
-- **HQ daily reporting** — each branch (identified by code + name) auto-sends an end-of-day report
-  (sales totals, order count, payment breakdown, top products, low-stock) to a central HQ service
+### Selling
+- **Barcode scanning** — USB scanners work as keyboard wedges; a scan registers anywhere on the
+  POS without clicking into a field first. Server-side barcode lookup, so it stays fast on a
+  large catalogue.
+- **Any goods** — quantities are `Decimal(12,3)`, so the same system handles whole units (tins,
+  boxes) and measured goods (kg, litres, metres). `Product.sold_by` marks which; unit items are
+  held to whole numbers.
+- **Split payments** — one sale can be settled by several tenders (cash + card), with cash
+  tendered and change due tracked so the drawer always balances.
+- **Hold / resume** — park a sale to serve the next customer; held sales survive a reload.
+- **Discounts** — per line and per order, with a manager PIN required above a configurable
+  threshold. No discount can drive a total negative.
+- **Offline mode** — a sale that cannot reach the server is banked locally and replayed on
+  reconnect. Checkout is idempotent on a terminal-generated `client_uuid`, so a replay (or a
+  retry whose response was lost) can never ring the same sale up twice.
+
+### Cash accountability
+- **Shifts / till sessions** — open with a counted float, and every sale binds to the shift that
+  took it. A cash sale with no open shift is refused rather than left unattributable.
+- **Cash drawer** — paid-in, paid-out and drops, each requiring a reason.
+- **Blind close** — the cashier submits their physical count *before* the expected figure is
+  shown; the variance is persisted so a short drawer stays attributable to a named person.
+- **X and Z reports** — mid-shift read and end-of-shift close, printable to the thermal printer.
+
+### Corrections
+- **Voids** — reverse a whole sale while the shift is still open: restocks every line and pulls
+  the cash back out of the drawer.
+- **Returns / refunds** — whole or partial, afterwards, as a numbered document (`RT00001`).
+  Refunds at the price *actually paid*, so a discounted line is not refunded at full price, and
+  each line is capped at what has not already been returned. Damaged goods can be refunded
+  without restocking.
+- **Manager PIN override** — voids, refunds and large discounts need a supervisor's PIN (stored
+  hashed). The audit log records both the cashier and the authorising manager.
+
+### Stock
+- **Ledger** — every change to stock is an append-only `StockMovement` (sale, purchase, return,
+  void, stock take, waste); product stock is derived from it.
+- **Purchase orders & goods receipt** — order from a supplier, then receive in one or several
+  deliveries. Over-receiving is refused, and a delivered price different from the ordered price
+  updates the product cost.
+- **Stock takes** — snapshot expected levels at the start of a count so sales during the count
+  do not distort the variance; applying writes explicit corrections through the ledger.
+
+### Reporting
+- **Margin report** — revenue vs cost of goods, using the cost snapshotted at sale time, so
+  historic margins do not move when a product's cost is edited.
+- **Per-cashier** — sales, average sale, and void/refund counts side by side.
+- **Hourly trade profile** for staffing, plus daily and monthly series.
+- **CSV export** — line-level sales (with per-line margin) and stock valuation.
+- **Audit log** — who discounted, voided, refunded, changed a price or moved cash, and who
+  authorised it.
+- **HQ daily reporting** — each branch auto-sends an end-of-day report to a central HQ service
   that stores it and shows a cross-branch dashboard. Resilient (retry + idempotent upsert).
+
+### Hardware & platform
+- **Thermal printing (ESC/POS)** — silent, instant receipts over TCP 9100 or a device path, with
+  no native module to compile. Falls back to the HTML print dialog when no printer is
+  configured or one fails, so a printer fault never blocks a sale.
+- **Cash drawer kick** — fired only when cash actually changed hands.
+- **Roles** — Super Admin (full CRUD) and Cashier (read-only catalog, can ring up sales).
+- **Customers**, **suppliers + WhatsApp**, and a **dashboard** with KPI cards and low-stock.
 
 ## Architecture
 
@@ -40,8 +88,9 @@ to a central HQ** service that aggregates and compares all branches.
 
 ```
 Cashier/
-  backend/            Branch Django project (apps: accounts, products, inventory,
-                      customers, suppliers, orders, whatsapp, reports, hqsync)
+  backend/            Branch Django project (apps: common, accounts, products, inventory,
+                      customers, suppliers, orders, shifts, purchasing, whatsapp,
+                      reports, hqsync)
   whatsapp-service/   Node + Express + whatsapp-web.js sidecar
   frontend/           Electron + Vite + React + TypeScript desktop app
   hq/                 Central HQ Django project (branches + ingest + dashboard)
@@ -77,6 +126,18 @@ python manage.py runserver
 API: http://127.0.0.1:8000/api · Django admin: http://127.0.0.1:8000/admin
 
 Seeded logins: **admin / admin12345** (Super Admin) and **cashier / cashier12345** (Cashier).
+The admin's **manager override PIN is 4321** — needed to void, refund, or apply a large discount
+as the cashier. The demo catalogue has barcodes (so the scanner can be tried) and two by-weight
+deli products (so weighed selling can be tried).
+
+### Trying the till
+
+1. **Shift & Drawer → Open shift** with a float. Selling is blocked until a drawer is open.
+2. **New Order** — scan a barcode (or type one and press Enter). By-weight items are added at
+   zero so you can key in what the scale says.
+3. **Take payment** — quick-cash for the common case, or split across cash and card.
+4. **Orders** — look up the sale, reprint it, or void/refund it (PIN `4321`).
+5. **Shift & Drawer → Close shift** — enter a blind count and compare against expected.
 
 ### 2) WhatsApp sidecar (optional — needed only for the WhatsApp feature)
 
@@ -179,48 +240,101 @@ each day's status (`SENT` / `PENDING` / `FAILED`), attempts and errors.
 
 ## Roles & permissions
 
-| Resource              | Super Admin | Cashier        |
-|-----------------------|-------------|----------------|
-| Users                 | CRUD        | —              |
-| Products / Categories | CRUD        | Read           |
-| Storage / Stock       | CRUD        | Read           |
-| Stock movements       | Create/Read | —              |
-| Customers             | CRUD        | Create/Read/Update |
-| Orders (checkout)     | Create/Read | Create/Read    |
-| Suppliers             | CRUD        | Read           |
-| Send WhatsApp         | Yes         | Yes            |
+| Resource                  | Super Admin | Cashier                    |
+|---------------------------|-------------|----------------------------|
+| Users                     | CRUD        | —                          |
+| Products / Categories     | CRUD        | Read                       |
+| Storage / Stock           | CRUD        | Read                       |
+| Stock movements           | Create/Read | —                          |
+| Customers                 | CRUD        | Create/Read/Update         |
+| Orders (checkout)         | Create/Read | Create/Read                |
+| Voids / refunds           | Yes         | With a manager PIN         |
+| Large discounts           | Yes         | With a manager PIN         |
+| Shifts (open/close/X-Z)   | Yes         | Yes (their own drawer)     |
+| Cash movement history     | Yes         | —                          |
+| Purchase orders / receipt | CRUD        | Read                       |
+| Stock takes               | Yes         | —                          |
+| Margin / cashier reports  | Yes         | —                          |
+| CSV export, audit log     | Yes         | —                          |
+| Suppliers                 | CRUD        | Read                       |
+| Send WhatsApp             | Yes         | Yes                        |
 
 ## API overview
 
-`POST /api/auth/login` · `POST /api/auth/refresh` · `GET /api/auth/me` ·
-CRUD routers under `/api/{users,categories,products,storages,stock,stock-movements,customers,suppliers,orders}/` ·
-`GET /api/whatsapp/status` · `POST /api/suppliers/{id}/whatsapp/` ·
-`GET /api/reports/{summary,monthly-sales,low-stock}` ·
-`GET /api/branch` · `GET /api/daily-reports` · `POST /api/daily-reports/send-now` (admin).
+**Auth** — `POST /api/auth/login` · `POST /api/auth/refresh` · `GET /api/auth/me`
+
+**CRUD routers** under `/api/{users,categories,products,storages,stock,stock-movements,
+customers,suppliers,orders,returns,shifts,cash-movements,purchase-orders,goods-receipts,
+stock-takes}/`
+
+**Selling**
+- `GET /api/products/lookup/?barcode=…` — resolve a scanned barcode
+- `POST /api/orders/` — checkout; accepts `items[]`, `payments[]`, `client_uuid` (idempotent),
+  `override_pin`
+- `POST /api/orders/{id}/void/` · `POST /api/orders/{id}/return/` · `GET /api/orders/{id}/returnable/`
+
+**Shifts**
+- `GET /api/shifts/current/` · `POST /api/shifts/open/` · `POST /api/shifts/{id}/close/`
+- `GET /api/shifts/{id}/x-report/` · `POST /api/shifts/{id}/cash-movement/`
+
+**Purchasing & stock**
+- `POST /api/purchase-orders/{id}/send|cancel|receive/`
+- `POST /api/stock-takes/start/` · `POST /api/stock-takes/{id}/count|apply/` ·
+  `GET /api/stock-takes/{id}/variances/`
+
+**Reports** — `GET /api/reports/{summary,monthly-sales,low-stock,margin,by-cashier,hourly,daily}` ·
+`GET /api/reports/export/{sales,stock}.csv` · `GET /api/audit-log/`
+
+**HQ** — `GET /api/branch` · `GET /api/daily-reports` · `POST /api/daily-reports/send-now` (admin).
 
 HQ ingest (called by branches): `POST /api/ingest/daily-report/` (auth: `X-Branch-Code` + `X-Api-Key`).
 
 ## Tests
 
 ```bash
-cd backend && python manage.py test     # branch: permissions, checkout, reports, HQ sync
-cd hq && python manage.py test          # HQ: ingest auth, upsert, dashboard access
+cd backend && python manage.py test --parallel 4   # 97 tests, ~55s
+cd hq && python manage.py test                     # HQ: ingest auth, upsert, dashboard access
+cd frontend && npx tsc --noEmit -p tsconfig.web.json   # renderer
+cd frontend && npx tsc --noEmit -p tsconfig.node.json  # main + preload
 ```
 
-Covers role permissions, checkout stock decrement + rollback, monthly-sales aggregation, the daily
-report build/send (mocked) + idempotency, and HQ ingest auth + upsert.
+Covers role permissions; checkout stock decrement + rollback; weighed vs whole-unit quantities;
+discount limits (including the negative-total guard); gapless receipt numbering across a
+rolled-back sale; COGS snapshotting; drawer reconciliation end-to-end (cash vs card vs split);
+voids and partial returns including the double-refund guard; manager PIN enforcement; PO
+over-receiving; stock-take variance; margin and CSV reports; offline replay idempotency; and the
+daily HQ report build/send (mocked) + upsert.
 
 ---
 
-## Suggested enhancements
+## Till configuration
 
-1. **Supplier purchase orders / deliveries** — formal restock flow writing `PURCHASE` movements.
-2. **Barcode scanning** — USB scanners act as keyboard input; add a focused field on the POS page.
-3. **Low-stock automation** — the data is there (`reorder_level`); add alerts and a one-click
-   "WhatsApp this supplier to reorder".
-4. **Reports export** — CSV/PDF of monthly sales and inventory.
-5. **Order cancellation/returns** — restock on cancel (orders are currently immutable once placed).
-6. **Audit log, multi-currency/tax config, per-branch data scoping** for multiple stores.
+Set in `backend/.env`:
+
+```
+REQUIRE_OPEN_SHIFT=False      # refuse ANY sale (not just cash) with no open shift
+DISCOUNT_OVERRIDE_AMOUNT=50   # discounts above this need a manager PIN
+DISCOUNT_OVERRIDE_PERCENT=20  # ...or above this percentage of the sale
+```
+
+Tax is currently off (totals are untaxed) but the fields and config scaffold are in place, so it
+can be switched on without a migration.
+
+### Receipt printer
+
+Configure per terminal in the desktop app under **Receipt Printer**, or provision a fleet with
+env vars: `PRINTER_HOST`, `PRINTER_PORT` (default 9100), `PRINTER_WIDTH` (32 for 58mm, 42 for
+80mm). Settings persist per machine in `printer.json` in the app's user-data directory. The page
+has **Test print** and **Test drawer** buttons.
+
+## Not yet implemented
+
+- **Tax** — fields and config exist, but no tax rules engine or per-product tax class.
+- **Loyalty / store credit / layaway**, gift cards.
+- **Product variants**, batch/lot + expiry tracking, serial numbers.
+- **Scale integration** — weighed items are keyed in, not read from a scale.
+- **Multi-currency** and cash rounding rules.
+- **Per-branch data scoping** within one database (each branch currently runs its own).
 
 ## Notes
 
