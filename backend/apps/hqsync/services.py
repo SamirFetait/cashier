@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db.models import Count, F, Sum
 from django.utils import timezone
 
+from apps.common.fields import format_quantity
 from apps.inventory.models import StockItem
 from apps.orders.models import Order, OrderItem
 
@@ -17,6 +18,11 @@ from .models import DailyReport
 
 def _d(value) -> str:
     return str(Decimal(value or 0).quantize(Decimal("0.01")))
+
+
+def _q(value) -> str:
+    """Quantities are Decimal (weighed goods) and must be JSON-safe for the payload."""
+    return format_quantity(Decimal(value or 0))
 
 
 def build_payload(report_date: date_cls) -> dict:
@@ -40,7 +46,7 @@ def build_payload(report_date: date_cls) -> dict:
     top_products = [
         {
             "product": r["product__name"],
-            "quantity": r["quantity"],
+            "quantity": _q(r["quantity"]),
             "revenue": _d(r["revenue"]),
         }
         for r in top_rows
@@ -55,8 +61,8 @@ def build_payload(report_date: date_cls) -> dict:
         {
             "product": s.product.name,
             "storage": s.storage.name,
-            "quantity": s.quantity,
-            "reorder_level": s.reorder_level,
+            "quantity": _q(s.quantity),
+            "reorder_level": _q(s.reorder_level),
         }
         for s in low_stock_rows
     ]

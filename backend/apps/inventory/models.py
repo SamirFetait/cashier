@@ -1,6 +1,10 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.db.models import F
+
+from apps.common.fields import QUANTITY_ZERO, quantity_field
 
 
 class Storage(models.Model):
@@ -27,8 +31,8 @@ class StockItem(models.Model):
     storage = models.ForeignKey(
         Storage, on_delete=models.CASCADE, related_name="stock_items"
     )
-    quantity = models.IntegerField(default=0)
-    reorder_level = models.IntegerField(default=0)
+    quantity = quantity_field(default=QUANTITY_ZERO)
+    reorder_level = quantity_field(default=QUANTITY_ZERO)
 
     class Meta:
         unique_together = ("product", "storage")
@@ -49,6 +53,10 @@ class StockMovement(models.Model):
         SALE = "SALE", "Sale"
         PURCHASE = "PURCHASE", "Purchase / restock"
         ADJUSTMENT = "ADJUSTMENT", "Manual adjustment"
+        RETURN = "RETURN", "Customer return"
+        VOID = "VOID", "Voided sale"
+        STOCKTAKE = "STOCKTAKE", "Stock take correction"
+        WASTE = "WASTE", "Waste / damage"
 
     product = models.ForeignKey(
         "products.Product", on_delete=models.PROTECT, related_name="movements"
@@ -56,9 +64,10 @@ class StockMovement(models.Model):
     storage = models.ForeignKey(
         Storage, on_delete=models.PROTECT, related_name="movements"
     )
-    change = models.IntegerField(help_text="Positive to add stock, negative to remove")
+    change = quantity_field(help_text="Positive to add stock, negative to remove")
     reason = models.CharField(max_length=20, choices=Reason.choices)
     reference = models.CharField(max_length=120, blank=True)
+    note = models.CharField(max_length=255, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -68,15 +77,16 @@ class StockMovement(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.get_reason_display()} {self.change:+d} {self.product}"
+        return f"{self.get_reason_display()} {self.change:+} {self.product}"
 
 
-def apply_stock_change(*, product, storage, change, reason, reference="", user=None):
+def apply_stock_change(*, product, storage, change, reason, reference="", user=None, note=""):
     """Atomically record a movement and update the StockItem balance.
 
     Must be called inside a transaction. Uses F() to avoid lost updates under
     concurrent writes. Returns the updated StockItem.
     """
+    change = Decimal(change)
     stock_item, _ = StockItem.objects.select_for_update().get_or_create(
         product=product, storage=storage
     )
@@ -87,6 +97,7 @@ def apply_stock_change(*, product, storage, change, reason, reference="", user=N
         change=change,
         reason=reason,
         reference=reference,
+        note=note,
         created_by=user,
     )
     stock_item.refresh_from_db()

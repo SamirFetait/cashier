@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_filters",
     # Local
+    "apps.common",
     "apps.accounts",
     "apps.products",
     "apps.inventory",
