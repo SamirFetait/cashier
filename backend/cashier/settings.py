@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "apps.suppliers",
     "apps.orders",
     "apps.shifts",
+    "apps.purchasing",
     "apps.whatsapp",
     "apps.reports",
     "apps.hqsync",

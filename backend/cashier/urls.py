@@ -9,6 +9,7 @@ from apps.customers.views import CustomerViewSet
 from apps.suppliers.views import SupplierViewSet
 from apps.orders.views import OrderViewSet, ReturnViewSet
 from apps.shifts.views import CashMovementViewSet, ShiftViewSet
+from apps.purchasing.views import GoodsReceiptViewSet, PurchaseOrderViewSet, StockTakeViewSet
 from apps.whatsapp.views import WhatsAppStatusView, SupplierWhatsAppView
 from apps.reports.views import SummaryView, MonthlySalesView, LowStockView
 from apps.hqsync.views import BranchView, DailyReportViewSet, SendDailyReportNowView
@@ -24,6 +25,9 @@ router.register("customers", CustomerViewSet, basename="customer")
 router.register("suppliers", SupplierViewSet, basename="supplier")
 router.register("orders", OrderViewSet, basename="order")
 router.register("returns", ReturnViewSet, basename="return")
+router.register("purchase-orders", PurchaseOrderViewSet, basename="purchaseorder")
+router.register("goods-receipts", GoodsReceiptViewSet, basename="goodsreceipt")
+router.register("stock-takes", StockTakeViewSet, basename="stocktake")
 router.register("shifts", ShiftViewSet, basename="shift")
 router.register("cash-movements", CashMovementViewSet, basename="cashmovement")
 router.register("daily-reports", DailyReportViewSet, basename="dailyreport")
