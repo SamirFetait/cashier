@@ -11,7 +11,11 @@ from apps.orders.views import OrderViewSet, ReturnViewSet
 from apps.shifts.views import CashMovementViewSet, ShiftViewSet
 from apps.purchasing.views import GoodsReceiptViewSet, PurchaseOrderViewSet, StockTakeViewSet
 from apps.whatsapp.views import WhatsAppStatusView, SupplierWhatsAppView
-from apps.reports.views import SummaryView, MonthlySalesView, LowStockView
+from apps.reports.views import (
+    SummaryView, MonthlySalesView, LowStockView, MarginReportView,
+    CashierReportView, HourlySalesView, DailySalesView, SalesCsvView,
+    StockCsvView, AuditLogView,
+)
 from apps.hqsync.views import BranchView, DailyReportViewSet, SendDailyReportNowView
 
 router = DefaultRouter()
@@ -41,6 +45,13 @@ api_patterns = [
     path("reports/summary/", SummaryView.as_view(), name="reports-summary"),
     path("reports/monthly-sales/", MonthlySalesView.as_view(), name="reports-monthly-sales"),
     path("reports/low-stock/", LowStockView.as_view(), name="reports-low-stock"),
+    path("reports/margin/", MarginReportView.as_view(), name="reports-margin"),
+    path("reports/by-cashier/", CashierReportView.as_view(), name="reports-cashier"),
+    path("reports/hourly/", HourlySalesView.as_view(), name="reports-hourly"),
+    path("reports/daily/", DailySalesView.as_view(), name="reports-daily"),
+    path("reports/export/sales.csv", SalesCsvView.as_view(), name="reports-sales-csv"),
+    path("reports/export/stock.csv", StockCsvView.as_view(), name="reports-stock-csv"),
+    path("audit-log/", AuditLogView.as_view(), name="audit-log"),
     path("branch/", BranchView.as_view(), name="branch"),
     path("daily-reports/send-now/", SendDailyReportNowView.as_view(), name="daily-report-send-now"),
     path("", include(router.urls)),

@@ -13,6 +13,7 @@ import {
   IconReceipt,
   IconCashRegister,
   IconPrinter,
+  IconChartBar,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -39,6 +40,7 @@ const NAV: NavItem[] = [
   { to: "/customers", label: "Customers", icon: <IconUsers size={18} /> },
   { to: "/suppliers", label: "Suppliers", icon: <IconTruck size={18} /> },
   { to: "/printer", label: "Receipt Printer", icon: <IconPrinter size={18} /> },
+  { to: "/reports", label: "Reports", icon: <IconChartBar size={18} />, adminOnly: true },
   { to: "/hq-reports", label: "HQ Reports", icon: <IconReportAnalytics size={18} />, adminOnly: true },
   { to: "/users", label: "Users", icon: <IconUserShield size={18} />, adminOnly: true },
 ];

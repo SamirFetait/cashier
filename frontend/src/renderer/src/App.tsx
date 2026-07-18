@@ -9,6 +9,7 @@ import { NewOrder } from "./pages/NewOrder";
 import { Orders } from "./pages/Orders";
 import { ShiftPage } from "./pages/ShiftPage";
 import { PrinterSettings } from "./pages/PrinterSettings";
+import { Reports } from "./pages/Reports";
 import { Products } from "./pages/Products";
 import { Customers } from "./pages/Customers";
 import { Suppliers } from "./pages/Suppliers";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/suppliers" element={<Suppliers />} />
+        {isSuperadmin && <Route path="/reports" element={<Reports />} />}
         {isSuperadmin && <Route path="/hq-reports" element={<HqReports />} />}
         {isSuperadmin && <Route path="/users" element={<Users />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
