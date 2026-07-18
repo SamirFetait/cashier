@@ -10,7 +10,7 @@ from apps.customers.models import Customer
 from apps.inventory.models import StockItem, Storage, apply_stock_change
 from apps.products.models import Product
 
-from .models import Payment
+from .models import OrderItem, Payment, Return, ReturnItem
 
 ZERO = Decimal("0")
 MONEY = Decimal("0.01")
@@ -111,6 +111,58 @@ class OrderSerializer(serializers.ModelSerializer):
             "amount_paid", "change_given", "note", "items", "payments", "created_at",
         ]
         read_only_fields = fields
+
+
+class ReturnItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.name", read_only=True)
+
+    class Meta:
+        model = ReturnItem
+        fields = [
+            "id", "order_item", "product", "product_name",
+            "quantity", "unit_refund", "line_refund",
+        ]
+        read_only_fields = fields
+
+
+class ReturnSerializer(serializers.ModelSerializer):
+    items = ReturnItemSerializer(many=True, read_only=True)
+    order_receipt = serializers.CharField(source="order.receipt_number", read_only=True)
+    created_by_username = serializers.CharField(source="created_by.username", read_only=True)
+
+    class Meta:
+        model = Return
+        fields = [
+            "id", "number", "order", "order_receipt", "created_by",
+            "created_by_username", "shift", "refund_method", "total",
+            "reason", "restocked", "items", "created_at",
+        ]
+        read_only_fields = fields
+
+
+class ReturnLineInputSerializer(serializers.Serializer):
+    order_item = serializers.PrimaryKeyRelatedField(queryset=OrderItem.objects.all())
+    quantity = serializers.DecimalField(
+        max_digits=QUANTITY_MAX_DIGITS,
+        decimal_places=QUANTITY_DECIMAL_PLACES,
+        min_value=Decimal("0.001"),
+    )
+
+
+class ReturnCreateSerializer(serializers.Serializer):
+    lines = ReturnLineInputSerializer(many=True)
+    refund_method = serializers.ChoiceField(choices=[c[0] for c in Payment.Method.choices])
+    reason = serializers.CharField(max_length=255)
+    restock = serializers.BooleanField(default=True)
+
+    def validate_lines(self, value):
+        if not value:
+            raise serializers.ValidationError("A return must include at least one line.")
+        return value
+
+
+class VoidSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=255)
 
 
 class OrderCreateSerializer(serializers.Serializer):

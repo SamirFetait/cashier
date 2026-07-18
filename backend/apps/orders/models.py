@@ -79,6 +79,56 @@ class Order(models.Model):
         return self.total - self.tax - self.cost_total
 
 
+class Return(models.Model):
+    """A refund document raised against a completed sale.
+
+    Kept separate from the Order so the original receipt is never rewritten.
+    """
+
+    number = models.CharField(max_length=32, unique=True, db_index=True)
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="returns")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, related_name="returns_created",
+    )
+    shift = models.ForeignKey(
+        "shifts.Shift", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="returns",
+    )
+    refund_method = models.CharField(max_length=20, choices=[
+        ("CASH", "Cash"), ("CARD", "Card"), ("MOBILE", "Mobile / wallet"),
+        ("VOUCHER", "Voucher"), ("OTHER", "Other"),
+    ])
+    total = money_field(default=Decimal("0"))
+    reason = models.CharField(max_length=255)
+    restocked = models.BooleanField(
+        default=True, help_text="False when goods came back damaged and were written off"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Return {self.number} — {self.total}"
+
+
+class ReturnItem(models.Model):
+    return_doc = models.ForeignKey(Return, on_delete=models.CASCADE, related_name="items")
+    order_item = models.ForeignKey(
+        "orders.OrderItem", on_delete=models.PROTECT, related_name="return_items"
+    )
+    product = models.ForeignKey(
+        "products.Product", on_delete=models.PROTECT, related_name="return_items"
+    )
+    quantity = quantity_field()
+    unit_refund = money_field()
+    line_refund = money_field()
+
+    def __str__(self) -> str:
+        return f"{self.quantity} x {self.product} refunded"
+
+
 class Payment(models.Model):
     """One tender against an order. An order may have several (split payment)."""
 

@@ -7,7 +7,7 @@ from apps.products.views import CategoryViewSet, ProductViewSet
 from apps.inventory.views import StorageViewSet, StockItemViewSet, StockMovementViewSet
 from apps.customers.views import CustomerViewSet
 from apps.suppliers.views import SupplierViewSet
-from apps.orders.views import OrderViewSet
+from apps.orders.views import OrderViewSet, ReturnViewSet
 from apps.shifts.views import CashMovementViewSet, ShiftViewSet
 from apps.whatsapp.views import WhatsAppStatusView, SupplierWhatsAppView
 from apps.reports.views import SummaryView, MonthlySalesView, LowStockView
@@ -23,6 +23,7 @@ router.register("stock-movements", StockMovementViewSet, basename="stockmovement
 router.register("customers", CustomerViewSet, basename="customer")
 router.register("suppliers", SupplierViewSet, basename="supplier")
 router.register("orders", OrderViewSet, basename="order")
+router.register("returns", ReturnViewSet, basename="return")
 router.register("shifts", ShiftViewSet, basename="shift")
 router.register("cash-movements", CashMovementViewSet, basename="cashmovement")
 router.register("daily-reports", DailyReportViewSet, basename="dailyreport")
