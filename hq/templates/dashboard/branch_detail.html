@@ -1,0 +1,42 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ branch.code }} — HQ{% endblock %}
+{% block content %}
+<p><a href="{% url 'dashboard' %}">&larr; All branches</a></p>
+<h1>{{ branch.code }} — {{ branch.name }}</h1>
+<p>Last report: {{ branch.last_report_at|default:"—" }}</p>
+
+<div class="card" style="margin-bottom:24px;">
+  <h2>Daily Sales</h2>
+  <canvas id="branchChart" height="90"></canvas>
+</div>
+
+<h2>Report History</h2>
+<table>
+  <thead><tr><th>Date</th><th>Sales</th><th>Orders</th><th>Top product</th><th>Low-stock items</th></tr></thead>
+  <tbody>
+    {% for r in reports %}
+    <tr>
+      <td>{{ r.date }}</td>
+      <td>{{ r.sales_total }}</td>
+      <td>{{ r.order_count }}</td>
+      <td>{{ r.payload.top_products.0.product|default:"—" }}</td>
+      <td>{{ r.payload.low_stock|length }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">No reports yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{{ chart_labels|json_script:"b-labels" }}
+{{ chart_values|json_script:"b-values" }}
+<script>
+  const labels = JSON.parse(document.getElementById("b-labels").textContent);
+  const values = JSON.parse(document.getElementById("b-values").textContent);
+  new Chart(document.getElementById("branchChart"), {
+    type: "line",
+    data: { labels, datasets: [{ label: "Sales", data: values, borderColor: "#4c6ef5", tension: 0.2 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,20 @@
+appId: com.cashier.pos
+productName: Cashier POS
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**/*
+  - package.json
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+linux:
+  target:
+    - AppImage

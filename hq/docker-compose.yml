@@ -1,0 +1,33 @@
+# Head-office (HQ) stack — runs at the main company, separate from the branches.
+# Branches POST their daily reports to http://<hq-host>:9000/api/ingest/daily-report/
+
+services:
+  hq-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hq
+      POSTGRES_USER: hq
+      POSTGRES_PASSWORD: hq
+    volumes:
+      - hqdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  hq:
+    build: .
+    depends_on:
+      hq-db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-change-me-hq-secret}
+      DEBUG: "False"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DATABASE_URL: postgres://hq:hq@hq-db:5432/hq
+    ports:
+      - "9000:9000"
+
+volumes:
+  hqdata:

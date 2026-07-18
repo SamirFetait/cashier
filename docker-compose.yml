@@ -1,0 +1,72 @@
+# Server stack for the networked deployment: PostgreSQL + Django API + WhatsApp sidecar.
+# Electron clients run natively on each cashier terminal and point VITE_API_BASE_URL
+# at this host's LAN address (e.g. http://192.168.1.10:8000/api).
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cashier
+      POSTGRES_USER: cashier
+      POSTGRES_PASSWORD: cashier
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cashier"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DEBUG: "False"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DATABASE_URL: postgres://cashier:cashier@db:5432/cashier
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      WHATSAPP_SERVICE_URL: http://whatsapp-service:3001
+      WHATSAPP_SHARED_SECRET: ${WHATSAPP_SHARED_SECRET:-change-me-shared-secret}
+      DEFAULT_COUNTRY_CODE: ${DEFAULT_COUNTRY_CODE:-20}
+      BRANCH_CODE: ${BRANCH_CODE:-BR001}
+      BRANCH_NAME: ${BRANCH_NAME:-Main Branch}
+      HQ_API_URL: ${HQ_API_URL:-}
+      HQ_API_KEY: ${HQ_API_KEY:-}
+      REPORT_TIME: ${REPORT_TIME:-22:00}
+    ports:
+      - "8000:8000"
+
+  # Sends the end-of-day report to HQ automatically at REPORT_TIME. Single instance.
+  scheduler:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DEBUG: "False"
+      DATABASE_URL: postgres://cashier:cashier@db:5432/cashier
+      HQ_API_URL: ${HQ_API_URL:-}
+      HQ_API_KEY: ${HQ_API_KEY:-}
+      BRANCH_CODE: ${BRANCH_CODE:-BR001}
+      BRANCH_NAME: ${BRANCH_NAME:-Main Branch}
+      REPORT_TIME: ${REPORT_TIME:-22:00}
+    command: sh -c "python manage.py run_scheduler"
+
+  whatsapp-service:
+    build: ./whatsapp-service
+    environment:
+      PORT: "3001"
+      WHATSAPP_SHARED_SECRET: ${WHATSAPP_SHARED_SECRET:-change-me-shared-secret}
+      SESSION_PATH: /data/.wwebjs_auth
+    volumes:
+      - wa_session:/data/.wwebjs_auth
+    ports:
+      - "3001:3001"
+
+volumes:
+  pgdata:
+  wa_session:

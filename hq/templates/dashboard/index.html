@@ -1,0 +1,65 @@
+{% extends "dashboard/base.html" %}
+{% block title %}HQ Dashboard{% endblock %}
+{% block content %}
+<h1>Company Overview</h1>
+
+<div class="cards">
+  <div class="card"><div class="kpi-label">Branches</div><div class="kpi-value">{{ branch_count }}</div></div>
+  <div class="card"><div class="kpi-label">Sales Today (all branches)</div><div class="kpi-value">{{ today_total }}</div></div>
+  <div class="card"><div class="kpi-label">Sales This Month</div><div class="kpi-value">{{ month_total }}</div></div>
+  <div class="card"><div class="kpi-label">Reports Today</div><div class="kpi-value">{{ today_reports|length }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+  <h2>Today's Sales by Branch</h2>
+  <canvas id="salesChart" height="90"></canvas>
+</div>
+
+<h2>Branches</h2>
+<table style="margin-bottom:24px;">
+  <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Last report</th><th></th></tr></thead>
+  <tbody>
+    {% for b in branches %}
+    <tr>
+      <td>{{ b.code }}</td>
+      <td>{{ b.name }}</td>
+      <td>{% if b.is_active %}<span class="badge ok">active</span>{% else %}<span class="badge stale">inactive</span>{% endif %}</td>
+      <td>{{ b.last_report_at|default:"—" }}</td>
+      <td><a class="btn" href="{% url 'branch-detail' b.pk %}">View</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">No branches registered yet. Add one in the Django admin.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent Reports</h2>
+<table>
+  <thead><tr><th>Branch</th><th>Date</th><th>Sales</th><th>Orders</th><th>Received</th></tr></thead>
+  <tbody>
+    {% for r in recent_reports %}
+    <tr>
+      <td>{{ r.branch.code }}</td>
+      <td>{{ r.date }}</td>
+      <td>{{ r.sales_total }}</td>
+      <td>{{ r.order_count }}</td>
+      <td>{{ r.received_at }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">No reports received yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{{ chart_labels|json_script:"chart-labels" }}
+{{ chart_values|json_script:"chart-values" }}
+<script>
+  const labels = JSON.parse(document.getElementById("chart-labels").textContent);
+  const values = JSON.parse(document.getElementById("chart-values").textContent);
+  new Chart(document.getElementById("salesChart"), {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Sales", data: values, backgroundColor: "#4c6ef5" }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
+</script>
+{% endblock %}
