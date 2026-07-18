@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.accounts.overrides import resolve_override
 from apps.shifts.services import active_shift
 
 from . import services
@@ -42,11 +43,15 @@ class OrderViewSet(viewsets.ModelViewSet):
     def void(self, request, pk=None):
         serializer = VoidSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        order = self.get_object()
+        authorised_by = resolve_override(
+            request, action="void", detail=order.receipt_number or str(order.pk)
+        )
         order = services.void_order(
-            order=self.get_object(),
+            order=order,
             user=request.user,
             reason=serializer.validated_data["reason"],
-            authorised_by=getattr(request, "override_user", None),
+            authorised_by=authorised_by,
         )
         return Response(OrderSerializer(order, context={"request": request}).data)
 
@@ -55,15 +60,19 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer = ReturnCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        order = self.get_object()
+        authorised_by = resolve_override(
+            request, action="refund", detail=order.receipt_number or str(order.pk)
+        )
         ret = services.create_return(
-            order=self.get_object(),
+            order=order,
             user=request.user,
             lines=data["lines"],
             refund_method=data["refund_method"],
             reason=data["reason"],
             restock=data["restock"],
             shift=active_shift(terminal=request.data.get("terminal", "")),
-            authorised_by=getattr(request, "override_user", None),
+            authorised_by=authorised_by,
         )
         return Response(ReturnSerializer(ret).data, status=201)
 

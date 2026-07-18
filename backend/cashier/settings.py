@@ -1,5 +1,6 @@
 """Django settings for the Cashier / POS backend."""
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import environ
@@ -143,3 +144,12 @@ HQ_API_URL = env("HQ_API_URL", default="")  # e.g. http://hq.company.local:9000
 HQ_API_KEY = env("HQ_API_KEY", default="")
 # Close-of-business time (24h "HH:MM", local TIME_ZONE) the scheduler sends the daily report.
 REPORT_TIME = env("REPORT_TIME", default="22:00")
+
+# --- Till controls ---
+# Refuse any sale (not just cash) when no shift is open. Off by default so a
+# card-only terminal can still trade, but recommended for a cash store.
+REQUIRE_OPEN_SHIFT = env.bool("REQUIRE_OPEN_SHIFT", default=False)
+# A discount above either threshold needs a manager PIN at the till.
+# Set both to None to let cashiers discount freely.
+DISCOUNT_OVERRIDE_AMOUNT = Decimal(env("DISCOUNT_OVERRIDE_AMOUNT", default="50"))
+DISCOUNT_OVERRIDE_PERCENT = Decimal(env("DISCOUNT_OVERRIDE_PERCENT", default="20"))

@@ -5,6 +5,7 @@ import {
   Group,
   Modal,
   NumberInput,
+  PasswordInput,
   Select,
   Stack,
   Table,
@@ -20,6 +21,7 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Order, Paginated, ReturnableInfo } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
 import { printOrderReceipt } from "../receipt/receipt";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -51,6 +53,9 @@ function apiError(err: any, fallback: string) {
 
 export function Orders() {
   const qc = useQueryClient();
+  const { isSuperadmin } = useAuth();
+  // Cashiers need a supervisor to key in a PIN; managers authorise themselves.
+  const [overridePin, setOverridePin] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Order | null>(null);
   const [voidOpen, setVoidOpen] = useState(false);
@@ -80,11 +85,17 @@ export function Orders() {
 
   const voidMutation = useMutation({
     mutationFn: async () =>
-      (await api.post(`/orders/${selected!.id}/void/`, { reason: voidReason })).data,
+      (
+        await api.post(`/orders/${selected!.id}/void/`, {
+          reason: voidReason,
+          override_pin: overridePin,
+        })
+      ).data,
     onSuccess: () => {
       notifications.show({ title: "Sale voided", message: voidReason, color: "green" });
       setVoidOpen(false);
       setVoidReason("");
+      setOverridePin("");
       setSelected(null);
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["shift"] });
@@ -108,6 +119,7 @@ export function Orders() {
           refund_method: refundMethod,
           reason: returnReason,
           restock: restock === "yes",
+          override_pin: overridePin,
         })
       ).data;
     },
@@ -120,6 +132,7 @@ export function Orders() {
       setReturnOpen(false);
       setReturnReason("");
       setReturnQty({});
+      setOverridePin("");
       setSelected(null);
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["shift"] });
@@ -303,13 +316,21 @@ export function Orders() {
             value={voidReason}
             onChange={(e) => setVoidReason(e.currentTarget.value)}
           />
+          {!isSuperadmin && (
+            <PasswordInput
+              label="Manager PIN"
+              description="A supervisor must authorise this void"
+              value={overridePin}
+              onChange={(e) => setOverridePin(e.currentTarget.value)}
+            />
+          )}
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setVoidOpen(false)}>
               Cancel
             </Button>
             <Button
               color="red"
-              disabled={!voidReason.trim()}
+              disabled={!voidReason.trim() || (!isSuperadmin && !overridePin.trim())}
               loading={voidMutation.isPending}
               onClick={() => voidMutation.mutate()}
             >
@@ -391,6 +412,14 @@ export function Orders() {
             value={returnReason}
             onChange={(e) => setReturnReason(e.currentTarget.value)}
           />
+          {!isSuperadmin && (
+            <PasswordInput
+              label="Manager PIN"
+              description="A supervisor must authorise this refund"
+              value={overridePin}
+              onChange={(e) => setOverridePin(e.currentTarget.value)}
+            />
+          )}
 
           <Group justify="space-between">
             <Text fw={600}>Refund total</Text>
@@ -403,7 +432,11 @@ export function Orders() {
             </Button>
             <Button
               color="orange"
-              disabled={!returnReason.trim() || totalRefund <= 0}
+              disabled={
+                !returnReason.trim() ||
+                totalRefund <= 0 ||
+                (!isSuperadmin && !overridePin.trim())
+              }
               loading={returnMutation.isPending}
               onClick={() => returnMutation.mutate()}
             >

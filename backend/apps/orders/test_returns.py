@@ -12,12 +12,17 @@ from .models import Order, Return
 
 User = get_user_model()
 
+MANAGER_PIN = "4321"
+
 
 class ReturnsBase(APITestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
             username="admin", password="pass12345", role=User.Role.SUPERADMIN
         )
+        # Voids and refunds need a manager PIN (see apps.accounts.overrides).
+        self.admin.set_override_pin(MANAGER_PIN)
+        self.admin.save()
         self.cashier = User.objects.create_user(
             username="cash", password="pass12345", role=User.Role.CASHIER
         )
@@ -61,7 +66,7 @@ class VoidTests(ReturnsBase):
 
         resp = self.client.post(
             f"/api/orders/{order['id']}/void/",
-            {"reason": "Rang up twice"}, format="json",
+            {"reason": "Rang up twice", "override_pin": MANAGER_PIN}, format="json",
         )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data["status"], "VOIDED")
@@ -77,10 +82,10 @@ class VoidTests(ReturnsBase):
     def test_cannot_void_twice(self):
         order = self.sell()
         self.client.post(
-            f"/api/orders/{order['id']}/void/", {"reason": "mistake"}, format="json"
+            f"/api/orders/{order['id']}/void/", {"reason": "mistake", "override_pin": MANAGER_PIN}, format="json"
         )
         resp = self.client.post(
-            f"/api/orders/{order['id']}/void/", {"reason": "again"}, format="json"
+            f"/api/orders/{order['id']}/void/", {"reason": "again", "override_pin": MANAGER_PIN}, format="json"
         )
         self.assertEqual(resp.status_code, 400)
 
@@ -89,14 +94,14 @@ class VoidTests(ReturnsBase):
         order = self.sell()
         close_shift(shift=self.shift, user=self.cashier, counted_cash=Decimal("120.00"))
         resp = self.client.post(
-            f"/api/orders/{order['id']}/void/", {"reason": "late"}, format="json"
+            f"/api/orders/{order['id']}/void/", {"reason": "late", "override_pin": MANAGER_PIN}, format="json"
         )
         self.assertEqual(resp.status_code, 400)
 
     def test_void_writes_a_reversing_ledger_entry(self):
         order = self.sell(qty=2)
         self.client.post(
-            f"/api/orders/{order['id']}/void/", {"reason": "mistake"}, format="json"
+            f"/api/orders/{order['id']}/void/", {"reason": "mistake", "override_pin": MANAGER_PIN}, format="json"
         )
         self.assertTrue(
             StockMovement.objects.filter(reason="VOID", change=Decimal("2.000")).exists()
@@ -114,6 +119,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "4"}],
                 "refund_method": "CASH",
                 "reason": "Customer changed their mind",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )
@@ -132,6 +138,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "1"}],
                 "refund_method": "CASH",
                 "reason": "One was damaged",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )
@@ -149,6 +156,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "5"}],
                 "refund_method": "CASH",
                 "reason": "trying it on",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )
@@ -163,6 +171,7 @@ class ReturnTests(ReturnsBase):
             "lines": [{"order_item": item_id, "quantity": "2"}],
             "refund_method": "CASH",
             "reason": "returned",
+            "override_pin": MANAGER_PIN,
         }
         first = self.client.post(
             f"/api/orders/{order['id']}/return/", payload, format="json"
@@ -184,6 +193,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "1"}],
                 "refund_method": "CASH",
                 "reason": "one back",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )
@@ -199,6 +209,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "2"}],
                 "refund_method": "CASH",
                 "reason": "Arrived broken",
+                "override_pin": MANAGER_PIN,
                 "restock": False,
             },
             format="json",
@@ -217,6 +228,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "2"}],
                 "refund_method": "CARD",
                 "reason": "back to card",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )
@@ -232,6 +244,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "1"}],
                 "refund_method": "CASH",
                 "reason": "one back",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )
@@ -243,7 +256,7 @@ class ReturnTests(ReturnsBase):
         order = self.sell(qty=2)
         item_id = order["items"][0]["id"]
         self.client.post(
-            f"/api/orders/{order['id']}/void/", {"reason": "mistake"}, format="json"
+            f"/api/orders/{order['id']}/void/", {"reason": "mistake", "override_pin": MANAGER_PIN}, format="json"
         )
         resp = self.client.post(
             f"/api/orders/{order['id']}/return/",
@@ -251,6 +264,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "1"}],
                 "refund_method": "CASH",
                 "reason": "double dipping",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )
@@ -265,6 +279,7 @@ class ReturnTests(ReturnsBase):
                 "lines": [{"order_item": item_id, "quantity": "1"}],
                 "refund_method": "CASH",
                 "reason": "one back",
+                "override_pin": MANAGER_PIN,
             },
             format="json",
         )

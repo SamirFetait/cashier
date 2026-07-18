@@ -28,8 +28,10 @@ class Command(BaseCommand):
         )
         if created:
             admin.set_password("admin12345")
+            admin.set_override_pin("4321")
             admin.save()
             self.stdout.write(self.style.SUCCESS("Created superadmin: admin / admin12345"))
+            self.stdout.write(self.style.SUCCESS("Manager override PIN: 4321"))
 
         cashier, created = User.objects.get_or_create(
             username="cashier", defaults={"role": User.Role.CASHIER}

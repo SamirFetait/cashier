@@ -7,7 +7,9 @@ import {
   Grid,
   Group,
   Menu,
+  Modal,
   NumberInput,
+  PasswordInput,
   Select,
   Stack,
   Table,
@@ -70,6 +72,9 @@ export function NewOrder() {
   const [payOpen, setPayOpen] = useState(false);
   const [held, setHeld] = useState<HeldSale[]>(loadHeld);
   const [scanValue, setScanValue] = useState("");
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pendingPayments, setPendingPayments] = useState<TenderLine[]>([]);
   const scanRef = useRef<HTMLInputElement>(null);
 
   const shift = useQuery({
@@ -214,12 +219,13 @@ export function NewOrder() {
       (l.product.sold_by === "UNIT" && !Number.isInteger(l.quantity))
   );
 
-  async function checkout(payments: TenderLine[]) {
+  async function checkout(payments: TenderLine[], pin = "") {
     setSubmitting(true);
     try {
       const resp = await api.post<Order>("/orders/", {
         customer: customerId ? Number(customerId) : null,
         discount: orderDiscount,
+        override_pin: pin,
         items: cart.map((l) => ({
           product: l.product.id,
           quantity: l.quantity,
@@ -249,6 +255,21 @@ export function NewOrder() {
       qc.invalidateQueries({ queryKey: ["shift"] });
     } catch (err: any) {
       const data = err?.response?.data;
+      // The server decides what counts as a "large" discount; when it asks for
+      // a supervisor we prompt rather than duplicating the threshold here.
+      if (data?.override_pin) {
+        setPendingPayments(payments);
+        setPinOpen(true);
+        setSubmitting(false);
+        if (pin) {
+          notifications.show({
+            title: "PIN not accepted",
+            message: String(data.override_pin),
+            color: "red",
+          });
+        }
+        return;
+      }
       const detail =
         data?.detail ||
         (Array.isArray(data) ? data.join(" ") : null) ||
@@ -478,8 +499,50 @@ export function NewOrder() {
         total={total}
         submitting={submitting}
         onClose={() => setPayOpen(false)}
-        onConfirm={checkout}
+        onConfirm={(payments) => checkout(payments)}
       />
+
+      <Modal
+        opened={pinOpen}
+        onClose={() => setPinOpen(false)}
+        title="Manager authorisation"
+        centered
+      >
+        <Stack>
+          <Text size="sm" c="dimmed">
+            This discount is above the limit a cashier can apply on their own.
+            A supervisor needs to key in their PIN.
+          </Text>
+          <PasswordInput
+            label="Manager PIN"
+            value={pin}
+            onChange={(e) => setPin(e.currentTarget.value)}
+            data-autofocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && pin.trim()) {
+                setPinOpen(false);
+                checkout(pendingPayments, pin);
+                setPin("");
+              }
+            }}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setPinOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!pin.trim()}
+              onClick={() => {
+                setPinOpen(false);
+                checkout(pendingPayments, pin);
+                setPin("");
+              }}
+            >
+              Authorise
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

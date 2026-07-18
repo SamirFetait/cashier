@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers
 
+from apps.accounts.overrides import discount_needs_override, resolve_override
 from apps.common.fields import QUANTITY_DECIMAL_PLACES, QUANTITY_MAX_DIGITS
 from apps.common.models import Sequence, record_audit
 from apps.customers.models import Customer
@@ -183,6 +184,7 @@ class OrderCreateSerializer(serializers.Serializer):
     )
     note = serializers.CharField(max_length=255, required=False, allow_blank=True)
     terminal = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    override_pin = serializers.CharField(required=False, allow_blank=True, write_only=True)
     items = OrderItemInputSerializer(many=True)
     payments = PaymentInputSerializer(many=True, required=False)
 
@@ -201,6 +203,20 @@ class OrderCreateSerializer(serializers.Serializer):
         if attrs.get("discount", ZERO) > subtotal:
             raise serializers.ValidationError(
                 {"discount": f"Order discount exceeds the net subtotal ({subtotal})."}
+            )
+
+        # A large discount needs a supervisor at the till.
+        gross = sum(
+            ((line["product"].price * line["quantity"]).quantize(MONEY) for line in attrs["items"]),
+            ZERO,
+        )
+        total_discount = attrs.get("discount", ZERO) + sum(
+            (line.get("discount", ZERO) for line in attrs["items"]), ZERO
+        )
+        if total_discount > ZERO and discount_needs_override(total_discount, gross):
+            request = self.context.get("request")
+            attrs["_authorised_by"] = resolve_override(
+                request, action="discount", detail=f"discount {total_discount} on {gross}"
             )
 
         total = subtotal - attrs.get("discount", ZERO) + attrs.get("tax", ZERO)
@@ -330,6 +346,7 @@ class OrderCreateSerializer(serializers.Serializer):
             record_audit(
                 action="DISCOUNT",
                 actor=user,
+                authorised_by=validated_data.get("_authorised_by"),
                 obj=order,
                 summary=f"Discount {total_discount} on {order.receipt_number}",
                 detail={"order_discount": str(discount), "total_discount": str(total_discount)},
