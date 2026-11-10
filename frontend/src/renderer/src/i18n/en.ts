@@ -425,6 +425,28 @@ export const en = {
     thanks: "Thank you for your purchase!",
     keep: "Keep this receipt for returns",
   },
+  // The startup window (renderer/splash.html), one entry per update state.
+  splash: {
+    starting: { title: "Starting Fathet Kheer POS", sub: "Getting the app ready…" },
+    checking: { title: "Checking for updates", sub: "One moment…" },
+    downloading: {
+      title: "Updating Fathet Kheer POS",
+      sub: (version: string) =>
+        `Downloading version ${version}. The app opens by itself when the update is done.`,
+    },
+    installing: { title: "Installing the update", sub: "The app will restart by itself…" },
+    error: {
+      title: "Couldn't update right now",
+      sub: "Opening on the current version. It will try again later.",
+    },
+    opening: { title: "Opening Fathet Kheer POS", sub: "Everything is ready." },
+  },
+  updates: {
+    readyTitle: "Update ready",
+    readyBody: (version: string) =>
+      `Version ${version} is ready. Restart now to install it, or it installs the next time the app closes.`,
+    restart: "Restart now",
+  },
 };
 
 export type Messages = typeof en;

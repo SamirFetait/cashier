@@ -29,6 +29,9 @@ import { useI18n, type Messages } from "../i18n";
 import { LanguageToggle } from "./LanguageToggle";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { ThemeToggle } from "./ThemeToggle";
+import { titleBarOffset } from "./TitleBar";
+
+const HEADER_HEIGHT = 56;
 
 interface NavItem {
   to: string;
@@ -65,12 +68,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <AppShell
-      header={{ height: 56 }}
+      // The window's title bar (App.tsx) covers the header's top strip, so the
+      // header is that much taller and the sidebar and pages start below both.
+      header={{ height: HEADER_HEIGHT + titleBarOffset }}
       navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !opened } }}
       padding="md"
     >
       <AppShell.Header
         style={{
+          paddingTop: titleBarOffset,
           // The logo's colour sweep as a thin rule under the header.
           borderBottom: 0,
           backgroundImage: BRAND_GRADIENT,
@@ -79,7 +85,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           backgroundRepeat: "no-repeat",
         }}
       >
-        <Group h="100%" px="md" justify="space-between">
+        <Group h={HEADER_HEIGHT} px="md" justify="space-between">
           <Group>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
             <BrandLockup />

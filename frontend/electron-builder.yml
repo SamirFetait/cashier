@@ -9,12 +9,27 @@ directories:
 files:
   - out/**/*
   - package.json
+# Where installed tills look for updates (electron-updater reads latest.yml
+# there). A public repo that holds only the installers, so tills need no
+# token and the source can stay private. See RELEASE.md.
+publish:
+  - provider: github
+    owner: SamirFetait
+    repo: cashier-releases
+# Stamps the app exe's icon and version info (build/afterPack.js).
+afterPack: ./build/afterPack.js
 win:
   target:
     - nsis
+  # electron-builder's own exe editing unpacks a signing toolchain that needs
+  # admin rights on Windows; afterPack does the same job with rcedit. The app
+  # is unsigned: updates are verified by the sha512 in latest.yml instead.
+  signAndEditExecutable: false
 nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
+  # Per user, no questions asked: updates install with no admin prompt, and the
+  # install path stays the same from one version to the next.
+  oneClick: true
+  perMachine: false
 mac:
   target:
     - dmg

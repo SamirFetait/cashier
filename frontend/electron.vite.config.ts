@@ -68,5 +68,14 @@ export default defineConfig({
     server: {
       port: 5173,
     },
+    build: {
+      rollupOptions: {
+        // The app, and the startup splash the main process shows before it.
+        input: {
+          index: resolve("src/renderer/index.html"),
+          splash: resolve("src/renderer/splash.html"),
+        },
+      },
+    },
   },
 });

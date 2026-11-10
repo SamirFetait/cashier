@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>Fathet Kheer POS</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: "Segoe UI", system-ui, -apple-system, Roboto, Tahoma, sans-serif;
+        color: #d3f1ec;
+        /* The emblem's honeycomb over the badge teal, as on the sign-in screen. */
+        background:
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90'%3E%3Cpath d='M26 0 52 15v30L26 60 0 45V15zM26 60v30' fill='none' stroke='%23fff' stroke-opacity='.07' stroke-width='1.5'/%3E%3C/svg%3E"),
+          radial-gradient(120% 90% at 50% 0%, #0f6d64 0%, #04332f 58%, #021d1b 100%);
+        border: 1px solid rgba(67, 208, 189, 0.25);
+        -webkit-app-region: drag; /* frameless: the whole splash moves the window */
+        user-select: none;
+        overflow: hidden;
+      }
+      .brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        animation: rise 0.35s ease-out both;
+      }
+      .logo {
+        width: 172px;
+        height: auto;
+        filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.45));
+      }
+      .version {
+        font-size: 0.72rem;
+        color: #9fe7da;
+        padding: 0.12rem 0.55rem;
+        border-radius: 999px;
+        background: rgba(159, 231, 218, 0.14);
+        font-variant-numeric: tabular-nums;
+        min-height: 1.1em;
+      }
+      .version:empty {
+        visibility: hidden;
+      }
+      .status {
+        width: 100%;
+        padding: 1rem 2.4rem 0;
+        text-align: center;
+      }
+      h1 {
+        font-size: 0.98rem;
+        font-weight: 600;
+        margin: 0 0 0.3rem;
+        color: #ffffff;
+      }
+      p {
+        margin: 0;
+        font-size: 0.82rem;
+        color: #9fe7da;
+        line-height: 1.45;
+        min-height: 2.4em;
+      }
+      .track {
+        position: relative;
+        height: 6px;
+        margin: 0.8rem 0 0.45rem;
+        border-radius: 999px;
+        background: rgba(159, 231, 218, 0.18);
+        overflow: hidden;
+      }
+      .fill {
+        height: 100%;
+        width: 0;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #43d0bd, #ecc152); /* badge teal to frame gold */
+        transition: width 0.25s ease;
+      }
+      .fill.done {
+        background: #2c9e54; /* palm green */
+      }
+      /* No percentage to show yet: a sliding segment shows it is working. */
+      .track.indeterminate .fill {
+        position: absolute;
+        width: 38%;
+        animation: slide 1.15s ease-in-out infinite;
+      }
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: #9fe7da;
+        font-variant-numeric: tabular-nums;
+        min-height: 1.1em;
+      }
+      .error h1 {
+        color: #f1cf7b; /* frame gold: a warning, not an alarm */
+      }
+      @keyframes slide {
+        from {
+          left: -38%;
+        }
+        to {
+          left: 100%;
+        }
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .brand {
+          animation: none;
+        }
+        .track.indeterminate .fill {
+          animation-duration: 2.5s;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <img class="logo" src="./src/assets/brand/logo.webp" alt="Fathet Kheer · فاتحة خير" />
+      <div class="version" id="version" dir="ltr"></div>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <h1 id="title"></h1>
+      <p id="sub"></p>
+      <div class="track indeterminate" id="track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+        <div class="fill" id="fill"></div>
+      </div>
+      <!-- dir="ltr": in Arabic, bidi would otherwise reorder "12.4 / 48.0 MB". -->
+      <div class="meta"><span id="pct" dir="ltr"></span><span id="size" dir="ltr"></span></div>
+    </div>
+    <script type="module" src="./src/splash.ts"></script>
+  </body>
+</html>

@@ -2,30 +2,20 @@ import { useSyncExternalStore } from "react";
 
 import { ar } from "./ar";
 import { en, type Messages } from "./en";
+import { dirOf, LANG_STORAGE_KEY, storedLang, type Lang } from "./lang";
 
-export type Lang = "en" | "ar";
+export { dirOf, type Lang };
 export type { Messages };
 
-const STORAGE_KEY = "cashier.lang";
 const MESSAGES: Record<Lang, Messages> = { en, ar };
 // Arabic month and day names with Latin digits, so prices, receipt numbers and
 // barcodes read the same in both languages. English keeps the system format.
 const LOCALES: Record<Lang, string | undefined> = { en: undefined, ar: "ar-EG-u-nu-latn" };
 
-function storedLang(): Lang {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "ar" ? "ar" : "en";
-  } catch {
-    return "en";
-  }
-}
-
 // A module-level store rather than React state: receipts are built outside
 // React and need the current language too.
 let current: Lang = storedLang();
 const listeners = new Set<() => void>();
-
-export const dirOf = (lang: Lang): "rtl" | "ltr" => (lang === "ar" ? "rtl" : "ltr");
 
 /** <html lang/dir> drive CSS logical properties and Mantine's RTL rules. */
 function applyToDocument(lang: Lang) {
@@ -49,7 +39,7 @@ export function setLang(lang: Lang) {
   if (lang === current) return;
   current = lang;
   try {
-    localStorage.setItem(STORAGE_KEY, lang);
+    localStorage.setItem(LANG_STORAGE_KEY, lang);
   } catch {
     /* still switches for this session */
   }

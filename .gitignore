@@ -19,6 +19,8 @@ whatsapp-service/.wwebjs_cache/
 
 # Environment
 **/.env
+# GitHub token for publishing releases (build.bat publish)
+.env.release
 
 # Editor / OS
 .vscode/

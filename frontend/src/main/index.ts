@@ -1,4 +1,5 @@
-import { app, shell, BrowserWindow, ipcMain, safeStorage } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, safeStorage } from "electron";
+import log from "electron-log/main";
 
 import {
   buildDrawerKick,
@@ -10,51 +11,58 @@ import {
 import { join } from "path";
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 
-import iconIco from "../../build/icon.ico?asset";
-import iconPng from "../../build/icon.png?asset";
+import {
+  installDownloadedUpdate,
+  runStartupUpdateGate,
+  sendUpdateStatus,
+  startSessionUpdates,
+} from "./updater";
+import { createMainWindow, createSplashWindow, loadPage, registerWindowIpc } from "./windows";
 
 // userData follows the app's name, and it holds the offline sale queue, held
 // sales, auth tokens and printer settings. Pin it to the folder the app has
 // always used so a product rename can never strand sales banked offline.
+// (Updater activity is logged to its logs\main.log.)
 app.setPath("userData", join(app.getPath("appData"), "cashier-desktop"));
 
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
 
 const authFile = () => join(app.getPath("userData"), "auth.bin");
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 1024,
-    minHeight: 680,
-    show: false,
-    autoHideMenuBar: true,
-    title: "Fathet Kheer POS",
-    // The .ico carries hand-picked 16-48px frames for the title bar and
-    // taskbar; macOS ignores this and uses the bundle icon.
-    icon: process.platform === "win32" ? iconIco : iconPng,
-    webPreferences: {
-      preload: join(__dirname, "../preload/index.js"),
-      sandbox: false,
-      contextIsolation: true,
-    },
-  });
+/** Splash, update gate, then the main window. */
+async function start(): Promise<void> {
+  splashWindow = createSplashWindow();
+  await loadPage(splashWindow, "splash").catch((err) => log.warn("[app] splash failed to load:", err));
+  if ((await runStartupUpdateGate(() => splashWindow)) === "installing") return;
 
-  mainWindow.on("ready-to-show", () => mainWindow?.show());
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
-    return { action: "deny" };
-  });
-
-  // electron-vite injects ELECTRON_RENDERER_URL in dev; load the built file otherwise.
-  if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
-  }
+  sendUpdateStatus(splashWindow, { state: "opening" });
+  const win = await openMainWindow();
+  // Only now: closing the splash while it is the last window would quit the app.
+  if (splashWindow && !splashWindow.isDestroyed()) splashWindow.destroy();
+  splashWindow = null;
+  startSessionUpdates(win);
 }
+
+async function openMainWindow(): Promise<BrowserWindow> {
+  const win = createMainWindow();
+  mainWindow = win;
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
+  const firstPaint = new Promise<void>((resolve) => win.once("ready-to-show", () => resolve()));
+  await loadPage(win, "index").catch((err) => log.error("[app] main window failed to load:", err));
+  // The first paint lands within moments of the load; never stay on the
+  // splash if a graphics hiccup swallows the event.
+  await Promise.race([firstPaint, sleep(3000)]);
+  win.show();
+  return win;
+}
+
+ipcMain.handle("app:version", () => app.getVersion());
+ipcMain.handle("app:install-update", () => installDownloadedUpdate());
+registerWindowIpc();
 
 // --- Encrypted token storage (refresh + access tokens) ---
 ipcMain.handle("auth:get", () => {
@@ -168,12 +176,35 @@ ipcMain.handle("receipt:print", async (_e, html: string) => {
   });
 });
 
-app.whenReady().then(() => {
-  createWindow();
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// One instance only: launching again (say, while the update splash is up)
+// brings the running window forward instead of opening a second till.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win = [mainWindow, splashWindow].find((w) => w && !w.isDestroyed() && w.isVisible());
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
   });
-});
+
+  app
+    .whenReady()
+    .then(() => {
+      // No File / Edit / View bar: the app draws its own title bar. macOS keeps
+      // its menu, which is what makes copy and paste work there.
+      if (process.platform !== "darwin") Menu.setApplicationMenu(null);
+      app.on("activate", () => {
+        if (BrowserWindow.getAllWindows().length === 0) void openMainWindow();
+      });
+      return start();
+    })
+    .catch((err) => {
+      log.error("[app] startup failed:", err);
+      app.quit();
+    });
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

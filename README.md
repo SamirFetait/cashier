@@ -73,6 +73,10 @@ The desktop app is branded for **Fathet Kheer (فاتحة خير)**. See [Brandi
   no native module to compile. Falls back to the HTML print dialog when no printer is
   configured or one fails, so a printer fault never blocks a sale.
 - **Cash drawer kick** — fired only when cash actually changed hands.
+- **Auto-update** — installed tills update themselves from GitHub releases, downloading only what
+  changed (delta updates); a startup splash shows the progress. See [RELEASE.md](RELEASE.md).
+- **Native-looking window** — on Windows the app draws its own branded title bar, with only the
+  system minimize / maximize / close buttons, and no stock Electron menu.
 - **Roles** — Super Admin (full CRUD) and Cashier (read-only catalog, can ring up sales).
 - **Customers**, **suppliers + WhatsApp**, and a **dashboard** with KPI cards and low-stock.
 

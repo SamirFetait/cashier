@@ -1,6 +1,9 @@
 // Bridges Electron's preload `window.api` with browser fallbacks so the
 // renderer also runs in a normal browser tab (useful for quick UI testing).
 
+import type { TitleBarColors } from "../../shared/titlebar";
+import type { UpdateStatus } from "../../shared/updates";
+
 export interface Tokens {
   access: string;
   refresh: string;
@@ -11,6 +14,28 @@ const TOKEN_KEY = "cashier.tokens";
 
 export const platform = {
   isElectron: hasElectron,
+
+  /** The window has no system title bar, so the app draws its own (Windows). */
+  hasCustomTitleBar: hasElectron && !!window.api!.window?.hasCustomTitleBar,
+
+  setTitleBarColors(colors: TitleBarColors): void {
+    if (hasElectron) window.api!.window?.setTitleBarColors(colors);
+  },
+
+  async appVersion(): Promise<string | null> {
+    if (!hasElectron || !window.api!.app) return null;
+    return window.api!.app.version();
+  },
+
+  /** Update progress from the main process; returns an unsubscribe function. */
+  onUpdateStatus(handler: (status: UpdateStatus) => void): () => void {
+    if (!hasElectron || !window.api!.app) return () => {};
+    return window.api!.app.onUpdateStatus(handler);
+  },
+
+  async installUpdate(): Promise<void> {
+    if (hasElectron && window.api!.app) await window.api!.app.installUpdate();
+  },
 
   async getTokens(): Promise<Tokens | null> {
     if (hasElectron) return (await window.api!.auth.get()) as Tokens | null;

@@ -20,6 +20,7 @@ import { BRAND_GRADIENT } from "../brand/theme";
 import { WhatsAppContact } from "../brand/WhatsAppContact";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { titleBarOffset } from "../components/TitleBar";
 import { useI18n } from "../i18n";
 
 // The emblem's honeycomb as a faint tile over a badge-teal backdrop.
@@ -55,12 +56,12 @@ export function Login() {
   }
 
   return (
-    <Box mih="100vh" pos="relative" style={{ background: BACKDROP }}>
-      <Group pos="absolute" top={0} p="md" gap="xs" style={{ insetInlineEnd: 0 }}>
+    <Box mih="100vh" pt={titleBarOffset} pos="relative" style={{ background: BACKDROP }}>
+      <Group pos="absolute" top={titleBarOffset} p="md" gap="xs" style={{ insetInlineEnd: 0 }}>
         <LanguageToggle />
         <ThemeToggle />
       </Group>
-      <Center mih="100vh" p="md">
+      <Center mih={`calc(100vh - ${titleBarOffset}px)`} p="md">
         <Card shadow="xl" padding="xl" radius="lg" w={400}>
           <Card.Section h={5} style={{ backgroundImage: BRAND_GRADIENT }} />
           <Image src={logo} alt={`${BRAND.name} · ${BRAND.nameAr}`} w={250} mx="auto" mt="md" />

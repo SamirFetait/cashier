@@ -17,6 +17,7 @@ import "./i18n/arabic.css";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { theme } from "./brand/theme";
+import { titleBarOffset } from "./components/TitleBar";
 import { useI18n } from "./i18n";
 
 const queryClient = new QueryClient({
@@ -39,7 +40,11 @@ function Root() {
     <DirectionProvider initialDirection={dir} detectDirection={false}>
       <MantineProvider theme={theme} defaultColorScheme="light">
         <DirectionSync dir={dir} />
-        <Notifications position={dir === "rtl" ? "top-left" : "top-right"} />
+        <Notifications
+          position={dir === "rtl" ? "top-left" : "top-right"}
+          // Below the window's title bar, clear of the Windows buttons.
+          style={{ top: `calc(var(--mantine-spacing-md) + ${titleBarOffset}px)` }}
+        />
         <QueryClientProvider client={queryClient}>
           <HashRouter>
             <AuthProvider>
