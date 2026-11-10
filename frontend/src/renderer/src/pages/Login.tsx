@@ -3,20 +3,39 @@ import {
   Button,
   Card,
   Center,
+  Divider,
   Group,
+  Image,
   PasswordInput,
   Stack,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { useState } from "react";
 
+import logo from "../assets/brand/logo.webp";
 import { useAuth } from "../auth/AuthContext";
+import { BRAND } from "../brand/brand";
+import { BRAND_GRADIENT } from "../brand/theme";
+import { WhatsAppContact } from "../brand/WhatsAppContact";
+import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { useI18n } from "../i18n";
+
+// The emblem's honeycomb as a faint tile over a badge-teal backdrop.
+const HONEYCOMB =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90'%3E" +
+  "%3Cpath d='M26 0 52 15v30L26 60 0 45V15zM26 60v30' fill='none' stroke='%23fff' " +
+  "stroke-opacity='.14' stroke-width='1.5'/%3E%3C/svg%3E\")";
+
+const BACKDROP =
+  `${HONEYCOMB}, linear-gradient(160deg, ` +
+  "light-dark(var(--mantine-color-teal-4), var(--mantine-color-teal-9)), " +
+  "light-dark(var(--mantine-color-teal-8), #04211e))";
 
 export function Login() {
   const { login } = useAuth();
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,39 +48,36 @@ export function Login() {
     try {
       await login(username, password);
     } catch {
-      setError("Invalid username or password.");
+      setError(t.login.invalid);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Box
-      h="100vh"
-      bg="light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-8))"
-    >
-      <Group justify="flex-end" p="md">
+    <Box mih="100vh" pos="relative" style={{ background: BACKDROP }}>
+      <Group pos="absolute" top={0} p="md" gap="xs" style={{ insetInlineEnd: 0 }}>
+        <LanguageToggle />
         <ThemeToggle />
       </Group>
-      <Center h="calc(100vh - 76px)">
-        <Card shadow="md" padding="xl" radius="md" w={380}>
+      <Center mih="100vh" p="md">
+        <Card shadow="xl" padding="xl" radius="lg" w={400}>
+          <Card.Section h={5} style={{ backgroundImage: BRAND_GRADIENT }} />
+          <Image src={logo} alt={`${BRAND.name} · ${BRAND.nameAr}`} w={250} mx="auto" mt="md" />
           <form onSubmit={submit}>
-            <Stack>
-              <Title order={2} ta="center">
-                Cashier POS
-              </Title>
+            <Stack mt="lg">
               <Text c="dimmed" size="sm" ta="center">
-                Sign in to continue
+                {t.login.subtitle}
               </Text>
               <TextInput
-                label="Username"
+                label={t.login.username}
                 value={username}
                 onChange={(e) => setUsername(e.currentTarget.value)}
                 required
                 autoFocus
               />
               <PasswordInput
-                label="Password"
+                label={t.login.password}
                 value={password}
                 onChange={(e) => setPassword(e.currentTarget.value)}
                 required
@@ -71,11 +87,15 @@ export function Login() {
                   {error}
                 </Text>
               )}
-              <Button type="submit" loading={loading} fullWidth>
-                Sign in
+              <Button type="submit" loading={loading} fullWidth size="md">
+                {t.login.submit}
               </Button>
             </Stack>
           </form>
+          <Divider my="lg" />
+          <Group justify="center">
+            <WhatsAppContact />
+          </Group>
         </Card>
       </Center>
     </Box>

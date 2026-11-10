@@ -14,6 +14,7 @@ import { notifications } from "@mantine/notifications";
 import { IconPrinter } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
+import { ltr, useI18n } from "../i18n";
 import { platform } from "../platform";
 import type { ReceiptLine } from "../receipt/escposReceipt";
 
@@ -25,6 +26,7 @@ interface PrinterConfig {
   width?: number;
 }
 
+// Printed in the printer's own Latin font, so it stays English.
 const TEST_PAGE: ReceiptLine[] = [
   { left: "PRINTER TEST", align: "center", bold: true, double: true },
   { rule: true },
@@ -39,6 +41,7 @@ const TEST_PAGE: ReceiptLine[] = [
 ];
 
 export function PrinterSettings() {
+  const { t, lang } = useI18n();
   const [config, setConfig] = useState<PrinterConfig>({ transport: "none" });
   const [busy, setBusy] = useState(false);
 
@@ -49,8 +52,8 @@ export function PrinterSettings() {
   async function save() {
     await platform.setPrinterConfig(config);
     notifications.show({
-      title: "Printer settings saved",
-      message: "This terminal will use them for the next receipt.",
+      title: t.printer.saved,
+      message: t.printer.savedMessage,
       color: "green",
     });
   }
@@ -61,10 +64,10 @@ export function PrinterSettings() {
     const result = await platform.printEscPos(TEST_PAGE);
     setBusy(false);
     notifications.show({
-      title: result.success ? "Test sent" : "Test failed",
+      title: result.success ? t.printer.testSent : t.printer.testFailed,
       message: result.success
-        ? "Check the printer."
-        : (result.error ?? "Unknown error"),
+        ? t.printer.checkPrinter
+        : (result.error ?? t.common.unknownError),
       color: result.success ? "green" : "red",
     });
   }
@@ -75,8 +78,8 @@ export function PrinterSettings() {
     const result = await platform.openCashDrawer();
     setBusy(false);
     notifications.show({
-      title: result.success ? "Drawer signal sent" : "Drawer failed",
-      message: result.error ?? "The drawer should have opened.",
+      title: result.success ? t.printer.drawerSent : t.printer.drawerFailed,
+      message: result.error ?? t.printer.drawerShouldOpen,
       color: result.success ? "green" : "red",
     });
   }
@@ -84,27 +87,24 @@ export function PrinterSettings() {
   if (!platform.isElectron) {
     return (
       <Stack>
-        <Title order={2}>Receipt printer</Title>
-        <Alert color="orange">
-          Thermal printing is only available in the desktop app. In a browser
-          tab receipts fall back to the print dialog.
-        </Alert>
+        <Title order={2}>{t.printer.title}</Title>
+        <Alert color="orange">{t.printer.browserOnly}</Alert>
       </Stack>
     );
   }
 
   return (
     <Stack>
-      <Title order={2}>Receipt printer</Title>
+      <Title order={2}>{t.printer.title}</Title>
       <Card withBorder radius="md" maw={560}>
         <Stack>
           <Select
-            label="Connection"
-            description="Most counter-top thermal printers listen on the network at port 9100"
+            label={t.printer.connection}
+            description={t.printer.connectionHint}
             data={[
-              { value: "none", label: "None — use the print dialog" },
-              { value: "network", label: "Network (TCP/IP)" },
-              { value: "device", label: "Device / shared printer" },
+              { value: "none", label: t.printer.none },
+              { value: "network", label: t.printer.network },
+              { value: "device", label: t.printer.device },
             ]}
             value={config.transport}
             onChange={(v) =>
@@ -116,13 +116,14 @@ export function PrinterSettings() {
           {config.transport === "network" && (
             <Group grow>
               <TextInput
-                label="Printer IP"
+                label={t.printer.ip}
                 placeholder="192.168.1.50"
+                dir="ltr"
                 value={config.host ?? ""}
                 onChange={(e) => setConfig((c) => ({ ...c, host: e.currentTarget.value }))}
               />
               <NumberInput
-                label="Port"
+                label={t.printer.port}
                 value={config.port ?? 9100}
                 onChange={(v) => setConfig((c) => ({ ...c, port: Number(v) || 9100 }))}
               />
@@ -131,8 +132,9 @@ export function PrinterSettings() {
 
           {config.transport === "device" && (
             <TextInput
-              label="Device path"
-              description="e.g. \\\\SERVER\\Receipt on Windows, or /dev/usb/lp0 on Linux"
+              label={t.printer.devicePath}
+              description={t.printer.devicePathHint(ltr("\\\\SERVER\\Receipt"), ltr("/dev/usb/lp0"))}
+              dir="ltr"
               value={config.path ?? ""}
               onChange={(e) => setConfig((c) => ({ ...c, path: e.currentTarget.value }))}
             />
@@ -140,10 +142,10 @@ export function PrinterSettings() {
 
           {config.transport !== "none" && (
             <Select
-              label="Paper width"
+              label={t.printer.paperWidth}
               data={[
-                { value: "32", label: "58mm (32 characters)" },
-                { value: "42", label: "80mm (42 characters)" },
+                { value: "32", label: t.printer.width58 },
+                { value: "42", label: t.printer.width80 },
               ]}
               value={String(config.width ?? 42)}
               onChange={(v) => setConfig((c) => ({ ...c, width: Number(v) || 42 }))}
@@ -152,12 +154,15 @@ export function PrinterSettings() {
           )}
 
           <Text size="sm" c="dimmed">
-            When no thermal printer is set, receipts still print through the
-            normal dialog — a printer fault never blocks a sale.
+            {t.printer.fallbackNote}
           </Text>
 
+          {lang === "ar" && config.transport !== "none" && (
+            <Alert color="gold">{t.printer.englishOnly}</Alert>
+          )}
+
           <Group>
-            <Button onClick={save}>Save</Button>
+            <Button onClick={save}>{t.common.save}</Button>
             <Button
               variant="light"
               leftSection={<IconPrinter size={16} />}
@@ -165,7 +170,7 @@ export function PrinterSettings() {
               loading={busy}
               disabled={config.transport === "none"}
             >
-              Test print
+              {t.printer.testPrint}
             </Button>
             <Button
               variant="default"
@@ -173,7 +178,7 @@ export function PrinterSettings() {
               loading={busy}
               disabled={config.transport === "none"}
             >
-              Test drawer
+              {t.printer.testDrawer}
             </Button>
           </Group>
         </Stack>

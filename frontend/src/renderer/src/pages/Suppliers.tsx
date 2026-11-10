@@ -24,6 +24,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { Paginated, Supplier, WhatsAppStatus } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { ltr, useI18n } from "../i18n";
 
 interface FormState {
   id?: number;
@@ -37,6 +38,7 @@ const empty: FormState = { name: "", phone_number: "", address: "", notes: "" };
 
 export function Suppliers() {
   const { isSuperadmin } = useAuth();
+  const { t } = useI18n();
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [waOpen, wa] = useDisclosure(false);
@@ -73,9 +75,9 @@ export function Suppliers() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["suppliers"] });
       close();
-      notifications.show({ message: "Supplier saved", color: "green" });
+      notifications.show({ message: t.suppliers.saved, color: "green" });
     },
-    onError: () => notifications.show({ message: "Save failed", color: "red" }),
+    onError: () => notifications.show({ message: t.common.saveFailed, color: "red" }),
   });
 
   const send = useMutation({
@@ -85,25 +87,25 @@ export function Suppliers() {
       wa.close();
       setMessage("");
       notifications.show({
-        title: "WhatsApp sent",
-        message: `Message delivered to ${target?.name}`,
+        title: t.suppliers.sent,
+        message: t.suppliers.delivered(target?.name ?? ""),
         color: "green",
       });
     },
     onError: (err: any) => {
-      const detail = err?.response?.data?.detail ?? "Send failed (is WhatsApp paired?)";
-      notifications.show({ title: "WhatsApp error", message: detail, color: "red" });
+      const detail = err?.response?.data?.detail ?? t.suppliers.sendFailed;
+      notifications.show({ title: t.suppliers.error, message: detail, color: "red" });
     },
   });
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>Suppliers</Title>
+        <Title order={2}>{t.nav.suppliers}</Title>
         <Group>
           {isSuperadmin && (
             <Button variant="default" leftSection={<IconQrcode size={16} />} onClick={qr.open}>
-              WhatsApp setup
+              {t.suppliers.setup}
             </Button>
           )}
           {isSuperadmin && (
@@ -114,7 +116,7 @@ export function Suppliers() {
                 open();
               }}
             >
-              Add supplier
+              {t.suppliers.add}
             </Button>
           )}
         </Group>
@@ -124,17 +126,17 @@ export function Suppliers() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Phone</Table.Th>
-              <Table.Th>Address</Table.Th>
-              <Table.Th>Actions</Table.Th>
+              <Table.Th>{t.common.name}</Table.Th>
+              <Table.Th>{t.common.phone}</Table.Th>
+              <Table.Th>{t.common.address}</Table.Th>
+              <Table.Th>{t.common.actions}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {suppliers.data?.map((s) => (
               <Table.Tr key={s.id}>
                 <Table.Td>{s.name}</Table.Td>
-                <Table.Td>{s.phone_number}</Table.Td>
+                <Table.Td>{ltr(s.phone_number)}</Table.Td>
                 <Table.Td>{s.address || "—"}</Table.Td>
                 <Table.Td>
                   <Group gap="xs">
@@ -148,7 +150,7 @@ export function Suppliers() {
                         wa.open();
                       }}
                     >
-                      WhatsApp
+                      {t.common.whatsapp}
                     </Button>
                     {isSuperadmin && (
                       <ActionIcon
@@ -176,49 +178,54 @@ export function Suppliers() {
       </Card>
 
       {/* Create / edit supplier */}
-      <Modal opened={opened} onClose={close} title={form.id ? "Edit supplier" : "Add supplier"}>
+      <Modal opened={opened} onClose={close} title={form.id ? t.suppliers.edit : t.suppliers.add}>
         <Stack>
           <TextInput
-            label="Name"
+            label={t.common.name}
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
           />
           <TextInput
-            label="Phone number"
+            label={t.common.phoneNumber}
             required
+            dir="ltr"
             value={form.phone_number}
             onChange={(e) => setForm({ ...form, phone_number: e.currentTarget.value })}
           />
           <TextInput
-            label="Address"
+            label={t.common.address}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.currentTarget.value })}
           />
           <Textarea
-            label="Notes"
+            label={t.common.notes}
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
           />
           <Button loading={save.isPending} onClick={() => save.mutate(form)}>
-            Save
+            {t.common.save}
           </Button>
         </Stack>
       </Modal>
 
       {/* Send WhatsApp message */}
-      <Modal opened={waOpen} onClose={wa.close} title={`WhatsApp ${target?.name ?? ""}`}>
+      <Modal
+        opened={waOpen}
+        onClose={wa.close}
+        title={t.suppliers.messageTitle(target?.name ?? "")}
+      >
         <Stack>
           <Text size="sm" c="dimmed">
-            To: {target?.phone_number}
+            {t.suppliers.to(ltr(target?.phone_number ?? ""))}
           </Text>
           <Textarea
-            label="Message"
+            label={t.suppliers.message}
             minRows={4}
             autosize
             value={message}
             onChange={(e) => setMessage(e.currentTarget.value)}
-            placeholder="Hello, we'd like to reorder…"
+            placeholder={t.suppliers.messagePlaceholder}
           />
           <Button
             color="green"
@@ -227,33 +234,31 @@ export function Suppliers() {
             disabled={!message.trim()}
             onClick={() => send.mutate()}
           >
-            Send
+            {t.suppliers.send}
           </Button>
         </Stack>
       </Modal>
 
       {/* WhatsApp pairing / status */}
-      <Modal opened={qrOpen} onClose={qr.close} title="WhatsApp connection">
+      <Modal opened={qrOpen} onClose={qr.close} title={t.suppliers.connection}>
         <Stack align="center">
           {status.isLoading && <Loader />}
-          {status.isError && (
-            <Alert color="red">WhatsApp service is not reachable. Is it running?</Alert>
-          )}
+          {status.isError && <Alert color="red">{t.suppliers.unreachable}</Alert>}
           {status.data?.connected && (
             <Badge color="green" size="lg">
-              Connected
+              {t.suppliers.connected}
             </Badge>
           )}
           {status.data && !status.data.connected && status.data.qr && (
             <>
               <Text size="sm" c="dimmed" ta="center">
-                Open WhatsApp on your phone → Linked devices → Link a device, then scan:
+                {t.suppliers.scanHint}
               </Text>
               <Image src={status.data.qr} w={260} h={260} />
             </>
           )}
           {status.data && !status.data.connected && !status.data.qr && (
-            <Text c="dimmed">Waiting for the service to generate a QR…</Text>
+            <Text c="dimmed">{t.suppliers.waitingQr}</Text>
           )}
         </Stack>
       </Modal>

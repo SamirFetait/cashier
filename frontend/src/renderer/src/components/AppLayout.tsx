@@ -1,4 +1,4 @@
-import { AppShell, Burger, Group, NavLink, ScrollArea, Text, Badge, Button } from "@mantine/core";
+import { AppShell, Burger, Divider, Group, NavLink, ScrollArea, Text, Badge, Button } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconLayoutDashboard,
@@ -22,33 +22,39 @@ import { NavLink as RouterNavLink, useLocation, useNavigate } from "react-router
 import { api } from "../api/client";
 import type { BranchInfo } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { BrandLockup } from "../brand/BrandLockup";
+import { BRAND_GRADIENT } from "../brand/theme";
+import { WhatsAppContact } from "../brand/WhatsAppContact";
+import { useI18n, type Messages } from "../i18n";
+import { LanguageToggle } from "./LanguageToggle";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface NavItem {
   to: string;
-  label: string;
+  label: keyof Messages["nav"];
   icon: ReactNode;
   adminOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: <IconLayoutDashboard size={18} /> },
-  { to: "/new-order", label: "New Order", icon: <IconShoppingCart size={18} /> },
-  { to: "/orders", label: "Orders", icon: <IconReceipt size={18} /> },
-  { to: "/shift", label: "Shift & Drawer", icon: <IconCashRegister size={18} /> },
-  { to: "/products", label: "Products & Storage", icon: <IconBox size={18} /> },
-  { to: "/customers", label: "Customers", icon: <IconUsers size={18} /> },
-  { to: "/suppliers", label: "Suppliers", icon: <IconTruck size={18} /> },
-  { to: "/printer", label: "Receipt Printer", icon: <IconPrinter size={18} /> },
-  { to: "/reports", label: "Reports", icon: <IconChartBar size={18} />, adminOnly: true },
-  { to: "/hq-reports", label: "HQ Reports", icon: <IconReportAnalytics size={18} />, adminOnly: true },
-  { to: "/users", label: "Users", icon: <IconUserShield size={18} />, adminOnly: true },
+  { to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} /> },
+  { to: "/new-order", label: "newOrder", icon: <IconShoppingCart size={18} /> },
+  { to: "/orders", label: "orders", icon: <IconReceipt size={18} /> },
+  { to: "/shift", label: "shift", icon: <IconCashRegister size={18} /> },
+  { to: "/products", label: "products", icon: <IconBox size={18} /> },
+  { to: "/customers", label: "customers", icon: <IconUsers size={18} /> },
+  { to: "/suppliers", label: "suppliers", icon: <IconTruck size={18} /> },
+  { to: "/printer", label: "printer", icon: <IconPrinter size={18} /> },
+  { to: "/reports", label: "reports", icon: <IconChartBar size={18} />, adminOnly: true },
+  { to: "/hq-reports", label: "hqReports", icon: <IconReportAnalytics size={18} />, adminOnly: true },
+  { to: "/users", label: "users", icon: <IconUserShield size={18} />, adminOnly: true },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [opened, { toggle }] = useDisclosure();
   const { user, logout, isSuperadmin } = useAuth();
+  const { t } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
   const branch = useQuery({
@@ -63,11 +69,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
       navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !opened } }}
       padding="md"
     >
-      <AppShell.Header>
+      <AppShell.Header
+        style={{
+          // The logo's colour sweep as a thin rule under the header.
+          borderBottom: 0,
+          backgroundImage: BRAND_GRADIENT,
+          backgroundSize: "100% 3px",
+          backgroundPosition: "bottom",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
         <Group h="100%" px="md" justify="space-between">
           <Group>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <Text fw={700}>Cashier POS</Text>
+            <BrandLockup />
             {branch.data && (
               <Badge variant="light" color="teal" leftSection={<IconBuildingStore size={12} />}>
                 {branch.data.name} ({branch.data.code})
@@ -76,9 +91,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Group>
           <Group>
             <OfflineIndicator />
+            <LanguageToggle />
             <ThemeToggle />
             <Text size="sm">{user?.username}</Text>
-            <Badge color={isSuperadmin ? "grape" : "blue"}>{user?.role}</Badge>
+            {/* The effective role, matching the colour (a Django superuser
+                keeps role CASHIER but has full access). */}
+            <Badge color={isSuperadmin ? "gold.4" : "teal"} autoContrast>
+              {isSuperadmin ? t.roles.SUPERADMIN : t.roles.CASHIER}
+            </Badge>
           </Group>
         </Group>
       </AppShell.Header>
@@ -90,7 +110,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               key={n.to}
               component={RouterNavLink}
               to={n.to}
-              label={n.label}
+              label={t.nav[n.label]}
               leftSection={n.icon}
               active={location.pathname === n.to}
               onClick={() => opened && toggle()}
@@ -98,17 +118,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ))}
         </AppShell.Section>
         <AppShell.Section>
+          <Divider mb="sm" />
+          <Group px="xs" mb="sm">
+            <WhatsAppContact />
+          </Group>
           <Button
             variant="light"
             color="red"
             fullWidth
-            leftSection={<IconLogout size={18} />}
+            leftSection={<IconLogout size={18} className="mantine-rotate-rtl" />}
             onClick={async () => {
               await logout();
               navigate("/");
             }}
           >
-            Logout
+            {t.nav.logout}
           </Button>
         </AppShell.Section>
       </AppShell.Navbar>

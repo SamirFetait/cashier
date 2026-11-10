@@ -3,11 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The API_ORIGIN placeholder below becomes this terminal's API server at
+         build time (electron.vite.config.ts); product photos are served from
+         it too. blob: is for previewing a photo before it is uploaded. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* ws://localhost:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      content="default-src 'self'; connect-src 'self' __API_ORIGIN__ http://localhost:* http://127.0.0.1:* ws://localhost:*; img-src 'self' data: blob: __API_ORIGIN__ http://localhost:* http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'"
     />
-    <title>Cashier POS</title>
+    <link rel="icon" type="image/png" href="./src/assets/brand/favicon.png" />
+    <title>Fathet Kheer POS</title>
   </head>
   <body>
     <div id="root"></div>

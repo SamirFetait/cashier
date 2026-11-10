@@ -1,5 +1,8 @@
+# Keep appId as is: installers upgrade in place by it, so changing it would
+# install a second copy beside the first.
 appId: com.cashier.pos
-productName: Cashier POS
+# Display name only (installer, shortcuts, exe). Icons come from build/icon.*.
+productName: Fathet Kheer POS
 directories:
   buildResources: build
   output: dist

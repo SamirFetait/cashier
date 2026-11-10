@@ -1,4 +1,5 @@
 import type { Order, ShiftReport } from "../api/types";
+import { BRAND } from "../brand/brand";
 
 export interface ReceiptLine {
   left?: string;
@@ -10,7 +11,8 @@ export interface ReceiptLine {
   feed?: number;
 }
 
-const STORE_NAME = "Cashier POS";
+// Printed in the printer's built-in Latin font, so the English name only.
+const STORE_NAME = BRAND.name.toUpperCase();
 
 function money(v: string | number): string {
   return Number(v).toFixed(2);
@@ -25,6 +27,7 @@ function qty(v: string | number): string {
 export function orderToEscPos(order: Order, opts: { copy?: boolean } = {}): ReceiptLine[] {
   const lines: ReceiptLine[] = [
     { left: STORE_NAME, align: "center", bold: true, double: true },
+    { left: `WhatsApp ${BRAND.whatsapp.display}`, align: "center" },
   ];
 
   if (opts.copy) lines.push({ left: "*** REPRINT ***", align: "center", bold: true });

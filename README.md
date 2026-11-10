@@ -7,6 +7,8 @@ frontend, and a small **Node WhatsApp sidecar**. Designed for a networked store 
 For chains, each store runs its own copy (one **branch**) and automatically sends a **daily report
 to a central HQ** service that aggregates and compares all branches.
 
+The desktop app is branded for **Fathet Kheer (فاتحة خير)**. See [Branding](#branding).
+
 ## Features
 
 ### Selling
@@ -51,6 +53,9 @@ to a central HQ** service that aggregates and compares all branches.
   updates the product cost.
 - **Stock takes** — snapshot expected levels at the start of a count so sales during the count
   do not distort the variance; applying writes explicit corrections through the ledger.
+- **Product photos** — super admins add one per product in the product form. Stored in the
+  database (not on disk), so a website reading the same database has them too — see
+  [Website on the same database](#website-on-the-same-database).
 
 ### Reporting
 - **Margin report** — revenue vs cost of goods, using the cost snapshotted at sale time, so
@@ -267,6 +272,14 @@ each day's status (`SENT` / `PENDING` / `FAILED`), attempts and errors.
 customers,suppliers,orders,returns,shifts,cash-movements,purchase-orders,goods-receipts,
 stock-takes}/`
 
+**Products**
+- `GET /api/products/{id}/image/` — the photo as JPEG; `?size=thumb` for the small one. Public
+  (no login), since `<img>` tags cannot send a token. Each product's `image_url` carries
+  `?v=<version>`, and that URL is cached for a year; a new photo gets a new version.
+- `POST /api/products/{id}/image/` (multipart field `image`) · `DELETE /api/products/{id}/image/`
+  — super admin only. JPG/PNG/WebP up to 10 MB; stored as JPEG at most 1200 px, plus a 320 px
+  thumbnail, with the phone's rotation applied.
+
 **Selling**
 - `GET /api/products/lookup/?barcode=…` — resolve a scanned barcode
 - `POST /api/orders/` — checkout; accepts `items[]`, `payments[]`, `client_uuid` (idempotent),
@@ -326,6 +339,73 @@ Configure per terminal in the desktop app under **Receipt Printer**, or provisio
 env vars: `PRINTER_HOST`, `PRINTER_PORT` (default 9100), `PRINTER_WIDTH` (32 for 58mm, 42 for
 80mm). Settings persist per machine in `printer.json` in the app's user-data directory. The page
 has **Test print** and **Test drawer** buttons.
+
+## Branding
+
+| What | Where |
+|------|-------|
+| Store name and WhatsApp number | `frontend/src/renderer/src/brand/brand.ts` |
+| Colours: palettes sampled from the logo (teal, gold, wood, palm green) | `frontend/src/renderer/src/brand/theme.ts` |
+| Logo, header emblem, receipt logo, favicon | `frontend/src/renderer/src/assets/brand/` |
+| App icon (exe, installer, window) | `frontend/build/icon.ico`, `frontend/build/icon.png` |
+| Window title, installer name | `frontend/src/renderer/index.html`, `frontend/src/main/index.ts`, `frontend/electron-builder.yml` |
+
+The WhatsApp number shows on the login screen, in the sidebar (click to chat), and on every
+receipt. Thermal receipts print the name and number in the printer's own font, which has no
+Arabic. The HTML receipt also carries the logo, embedded with a `?dataurl` import because it
+prints from a window that cannot load app files. The header emblem is the logo's hexagon,
+rebuilt as a complete shape so it reads at icon sizes.
+
+Renaming the product does not move local data: the offline sale queue, held sales and printer
+settings stay pinned to the `cashier-desktop` data folder. Keep `appId` unchanged so new
+installers upgrade the old one in place.
+
+## Languages (English / Arabic)
+
+The desktop app runs in English or Arabic. Switch with the language button in the header or on
+the login screen; the choice is remembered per terminal. Arabic lays the whole app out
+right-to-left (sidebar on the right, mirrored chart) and keeps Latin digits, so prices,
+receipt numbers and barcodes read the same in both languages.
+
+- Strings live in `frontend/src/renderer/src/i18n/en.ts` and `ar.ts`. `ar.ts` is typed against
+  the English set, so a missing or misspelt key fails `npm run typecheck`. Add a string to
+  both files, then use it as `const { t } = useI18n(); t.section.key`.
+- Wrap phone numbers, signed amounts and file paths shown in Arabic text in `ltr()`, or a
+  leading `+`/`-` jumps to the far end.
+- Print-dialog receipts follow the app language. Thermal (ESC/POS) receipts and X/Z reports
+  stay English, because the printer's built-in font has no Arabic.
+- Error messages that come from the server (e.g. a stock refusal) stay in English.
+
+## Website on the same database
+
+A website can read the branch database directly. Stock is live: a sale at the till updates it
+in the same transaction, so an item that sells out in the store is out of stock on the site at
+once. (A sale rung up while a till was offline counts once that till reconnects.)
+
+```sql
+-- Catalogue: active products, stock summed over storage locations, photo version.
+SELECT p.id, p.name, p.price, p.unit, c.name AS category,
+       COALESCE(s.quantity, 0)     AS quantity,
+       COALESCE(s.quantity, 0) > 0 AS in_stock,
+       i.checksum                  AS photo_version      -- NULL: no photo
+FROM products_product p
+LEFT JOIN products_category c ON c.id = p.category_id
+LEFT JOIN (SELECT product_id, SUM(quantity) AS quantity
+           FROM inventory_stockitem GROUP BY product_id) s ON s.product_id = p.id
+LEFT JOIN products_productimage i ON i.product_id = p.id
+WHERE p.is_active;
+
+-- One photo: JPEG bytes. data is at most 1200 px, thumbnail at most 320 px.
+SELECT data, thumbnail, content_type, checksum
+FROM products_productimage WHERE product_id = $1;
+```
+
+- Serve photos from the website's own route using these bytes, with `checksum` as the ETag or a
+  URL version. Alternatively link to the POS server's `/api/products/{id}/image/` — but only if
+  that server is reachable from the internet.
+- **Read only.** If the website takes orders, create them through the POS API
+  (`POST /api/orders/`). Writing `inventory_stockitem` directly would skip the stock ledger,
+  receipt numbering and audit trail, and the till and website would drift apart.
 
 ## Not yet implemented
 

@@ -22,6 +22,8 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { Order, Paginated, ReturnableInfo } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { useI18n } from "../i18n";
+import { PAYMENT_METHODS } from "../pos/PaymentModal";
 import { printOrderReceipt } from "../receipt/receipt";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -54,6 +56,7 @@ function apiError(err: any, fallback: string) {
 export function Orders() {
   const qc = useQueryClient();
   const { isSuperadmin } = useAuth();
+  const { t, formatDateTime } = useI18n();
   // Cashiers need a supervisor to key in a PIN; managers authorise themselves.
   const [overridePin, setOverridePin] = useState("");
   const [search, setSearch] = useState("");
@@ -92,7 +95,7 @@ export function Orders() {
         })
       ).data,
     onSuccess: () => {
-      notifications.show({ title: "Sale voided", message: voidReason, color: "green" });
+      notifications.show({ title: t.orders.voided, message: voidReason, color: "green" });
       setVoidOpen(false);
       setVoidReason("");
       setOverridePin("");
@@ -102,8 +105,8 @@ export function Orders() {
     },
     onError: (err) =>
       notifications.show({
-        title: "Could not void",
-        message: apiError(err, "Failed"),
+        title: t.orders.voidFailed,
+        message: apiError(err, t.common.failed),
         color: "red",
       }),
   });
@@ -125,8 +128,8 @@ export function Orders() {
     },
     onSuccess: (data: any) => {
       notifications.show({
-        title: `Refund ${data.number}`,
-        message: `${money(data.total)} refunded`,
+        title: t.orders.refundDone(data.number),
+        message: t.orders.refundedAmount(money(data.total)),
         color: "green",
       });
       setReturnOpen(false);
@@ -139,8 +142,8 @@ export function Orders() {
     },
     onError: (err) =>
       notifications.show({
-        title: "Could not process return",
-        message: apiError(err, "Failed"),
+        title: t.orders.returnFailed,
+        message: apiError(err, t.common.failed),
         color: "red",
       }),
   });
@@ -156,10 +159,10 @@ export function Orders() {
 
   return (
     <Stack>
-      <Title order={2}>Orders</Title>
+      <Title order={2}>{t.nav.orders}</Title>
 
       <TextInput
-        placeholder="Search by receipt number or customer"
+        placeholder={t.orders.search}
         leftSection={<IconSearch size={16} />}
         value={search}
         onChange={(e) => setSearch(e.currentTarget.value)}
@@ -170,12 +173,12 @@ export function Orders() {
         <Table highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Receipt</Table.Th>
-              <Table.Th>When</Table.Th>
-              <Table.Th>Customer</Table.Th>
-              <Table.Th>Cashier</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th ta="right">Total</Table.Th>
+              <Table.Th>{t.orders.receipt}</Table.Th>
+              <Table.Th>{t.orders.when}</Table.Th>
+              <Table.Th>{t.common.customer}</Table.Th>
+              <Table.Th>{t.common.cashier}</Table.Th>
+              <Table.Th>{t.common.status}</Table.Th>
+              <Table.Th ta="end">{t.common.total}</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
@@ -184,7 +187,7 @@ export function Orders() {
               <Table.Tr>
                 <Table.Td colSpan={7}>
                   <Text c="dimmed" ta="center" py="md">
-                    No orders found.
+                    {t.orders.none}
                   </Text>
                 </Table.Td>
               </Table.Tr>
@@ -192,18 +195,18 @@ export function Orders() {
             {(orders.data ?? []).map((o) => (
               <Table.Tr key={o.id}>
                 <Table.Td>{o.receipt_number ?? `#${o.id}`}</Table.Td>
-                <Table.Td>{new Date(o.created_at).toLocaleString()}</Table.Td>
-                <Table.Td>{o.customer_name ?? "Walk-in"}</Table.Td>
+                <Table.Td>{formatDateTime(o.created_at)}</Table.Td>
+                <Table.Td>{o.customer_name ?? t.common.walkIn}</Table.Td>
                 <Table.Td>{o.created_by_username ?? "—"}</Table.Td>
                 <Table.Td>
-                  <Badge color={STATUS_COLOR[o.status] ?? "blue"} variant="light">
-                    {o.status.replace("_", " ")}
+                  <Badge color={STATUS_COLOR[o.status] ?? "teal"} variant="light">
+                    {t.orderStatus[o.status]}
                   </Badge>
                 </Table.Td>
-                <Table.Td ta="right">{money(o.total)}</Table.Td>
+                <Table.Td ta="end">{money(o.total)}</Table.Td>
                 <Table.Td>
                   <Button size="xs" variant="subtle" onClick={() => setSelected(o)}>
-                    View
+                    {t.orders.view}
                   </Button>
                 </Table.Td>
               </Table.Tr>
@@ -215,61 +218,61 @@ export function Orders() {
       <Modal
         opened={!!selected && !voidOpen && !returnOpen}
         onClose={() => setSelected(null)}
-        title={selected ? `Sale ${selected.receipt_number ?? selected.id}` : ""}
+        title={selected ? t.orders.sale(selected.receipt_number ?? selected.id) : ""}
         size="lg"
         centered
       >
         {selected && (
           <Stack>
             <Group justify="space-between">
-              <Text c="dimmed">{new Date(selected.created_at).toLocaleString()}</Text>
-              <Badge color={STATUS_COLOR[selected.status] ?? "blue"}>
-                {selected.status.replace("_", " ")}
+              <Text c="dimmed">{formatDateTime(selected.created_at)}</Text>
+              <Badge color={STATUS_COLOR[selected.status] ?? "teal"}>
+                {t.orderStatus[selected.status]}
               </Badge>
             </Group>
 
             <Table>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Item</Table.Th>
-                  <Table.Th ta="right">Qty</Table.Th>
-                  <Table.Th ta="right">Price</Table.Th>
-                  <Table.Th ta="right">Line</Table.Th>
+                  <Table.Th>{t.common.item}</Table.Th>
+                  <Table.Th ta="end">{t.common.qty}</Table.Th>
+                  <Table.Th ta="end">{t.common.price}</Table.Th>
+                  <Table.Th ta="end">{t.common.line}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {selected.items.map((i) => (
                   <Table.Tr key={i.id}>
                     <Table.Td>{i.product_name}</Table.Td>
-                    <Table.Td ta="right">
+                    <Table.Td ta="end">
                       {Number(i.quantity)} {i.product_unit}
                     </Table.Td>
-                    <Table.Td ta="right">{money(i.unit_price)}</Table.Td>
-                    <Table.Td ta="right">{money(i.line_total)}</Table.Td>
+                    <Table.Td ta="end">{money(i.unit_price)}</Table.Td>
+                    <Table.Td ta="end">{money(i.line_total)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
 
             <Group justify="space-between">
-              <Text fw={600}>Total</Text>
+              <Text fw={600}>{t.common.total}</Text>
               <Text fw={700}>{money(selected.total)}</Text>
             </Group>
 
             {selected.payments.length > 0 && (
               <Card withBorder radius="sm" p="sm">
                 <Text size="sm" fw={600} mb={4}>
-                  Payment
+                  {t.orders.payment}
                 </Text>
                 {selected.payments.map((p) => (
                   <Group key={p.id} justify="space-between">
                     <Text size="sm">
-                      {p.method}
+                      {t.paymentMethods[p.method]}
                       {p.reference && ` · ${p.reference}`}
                     </Text>
                     <Text size="sm">
                       {money(p.amount)}
-                      {Number(p.change) > 0 && ` (change ${money(p.change)})`}
+                      {Number(p.change) > 0 && t.orders.changeNote(money(p.change))}
                     </Text>
                   </Group>
                 ))}
@@ -282,16 +285,16 @@ export function Orders() {
                 leftSection={<IconPrinter size={16} />}
                 onClick={() => printOrderReceipt(selected)}
               >
-                Reprint
+                {t.orders.reprint}
               </Button>
               {selected.status === "COMPLETED" && (
                 <Button color="gray" onClick={() => setVoidOpen(true)}>
-                  Void
+                  {t.orders.void}
                 </Button>
               )}
               {["COMPLETED", "PARTIALLY_REFUNDED"].includes(selected.status) && (
                 <Button color="orange" onClick={() => setReturnOpen(true)}>
-                  Return / refund
+                  {t.orders.returnRefund}
                 </Button>
               )}
             </Group>
@@ -302,31 +305,30 @@ export function Orders() {
       <Modal
         opened={voidOpen}
         onClose={() => setVoidOpen(false)}
-        title="Void sale"
+        title={t.orders.voidTitle}
         centered
       >
         <Stack>
           <Text size="sm" c="dimmed">
-            Reverses the whole sale, returns the stock and takes the cash back
-            out of the drawer. Only possible while the shift is still open.
+            {t.orders.voidBody}
           </Text>
           <Textarea
-            label="Reason"
-            description="Required — recorded in the audit log"
+            label={t.common.reason}
+            description={t.common.reasonRequired}
             value={voidReason}
             onChange={(e) => setVoidReason(e.currentTarget.value)}
           />
           {!isSuperadmin && (
             <PasswordInput
-              label="Manager PIN"
-              description="A supervisor must authorise this void"
+              label={t.common.managerPin}
+              description={t.orders.voidPinHint}
               value={overridePin}
               onChange={(e) => setOverridePin(e.currentTarget.value)}
             />
           )}
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setVoidOpen(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               color="red"
@@ -334,7 +336,7 @@ export function Orders() {
               loading={voidMutation.isPending}
               onClick={() => voidMutation.mutate()}
             >
-              Void sale
+              {t.orders.voidTitle}
             </Button>
           </Group>
         </Stack>
@@ -343,7 +345,7 @@ export function Orders() {
       <Modal
         opened={returnOpen}
         onClose={() => setReturnOpen(false)}
-        title="Return / refund"
+        title={t.orders.returnRefund}
         size="lg"
         centered
       >
@@ -351,16 +353,16 @@ export function Orders() {
           <Table>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Item</Table.Th>
-                <Table.Th ta="right">Returnable</Table.Th>
-                <Table.Th w={140}>Return qty</Table.Th>
+                <Table.Th>{t.common.item}</Table.Th>
+                <Table.Th ta="end">{t.orders.returnable}</Table.Th>
+                <Table.Th w={140}>{t.orders.returnQty}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {(returnable.data?.lines ?? []).map((line) => (
                 <Table.Tr key={line.order_item}>
                   <Table.Td>{line.product}</Table.Td>
-                  <Table.Td ta="right">{Number(line.returnable)}</Table.Td>
+                  <Table.Td ta="end">{Number(line.returnable)}</Table.Td>
                   <Table.Td>
                     <NumberInput
                       min={0}
@@ -382,23 +384,20 @@ export function Orders() {
 
           <Group grow>
             <Select
-              label="Refund to"
-              data={[
-                { value: "CASH", label: "Cash" },
-                { value: "CARD", label: "Card" },
-                { value: "MOBILE", label: "Mobile / wallet" },
-                { value: "VOUCHER", label: "Voucher" },
-                { value: "OTHER", label: "Other" },
-              ]}
+              label={t.orders.refundTo}
+              data={PAYMENT_METHODS.map((value) => ({
+                value,
+                label: t.paymentMethods[value],
+              }))}
               value={refundMethod}
               onChange={(v) => setRefundMethod(v || "CASH")}
               allowDeselect={false}
             />
             <Select
-              label="Put back into stock?"
+              label={t.orders.restockLabel}
               data={[
-                { value: "yes", label: "Yes — resaleable" },
-                { value: "no", label: "No — damaged / written off" },
+                { value: "yes", label: t.orders.restockYes },
+                { value: "no", label: t.orders.restockNo },
               ]}
               value={restock}
               onChange={(v) => setRestock(v || "yes")}
@@ -407,28 +406,28 @@ export function Orders() {
           </Group>
 
           <Textarea
-            label="Reason"
-            description="Required — recorded in the audit log"
+            label={t.common.reason}
+            description={t.common.reasonRequired}
             value={returnReason}
             onChange={(e) => setReturnReason(e.currentTarget.value)}
           />
           {!isSuperadmin && (
             <PasswordInput
-              label="Manager PIN"
-              description="A supervisor must authorise this refund"
+              label={t.common.managerPin}
+              description={t.orders.refundPinHint}
               value={overridePin}
               onChange={(e) => setOverridePin(e.currentTarget.value)}
             />
           )}
 
           <Group justify="space-between">
-            <Text fw={600}>Refund total</Text>
+            <Text fw={600}>{t.orders.refundTotal}</Text>
             <Text fw={700}>{totalRefund.toFixed(2)}</Text>
           </Group>
 
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setReturnOpen(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               color="orange"
@@ -440,7 +439,7 @@ export function Orders() {
               loading={returnMutation.isPending}
               onClick={() => returnMutation.mutate()}
             >
-              Refund {totalRefund.toFixed(2)}
+              {t.orders.refundButton(totalRefund.toFixed(2))}
             </Button>
           </Group>
         </Stack>

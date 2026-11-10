@@ -30,6 +30,8 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { Customer, Order, Paginated, Product, Shift } from "../api/types";
+import { ProductThumb, productThumbUrl } from "../components/ProductThumb";
+import { useI18n } from "../i18n";
 import { PaymentModal, TenderLine } from "../pos/PaymentModal";
 import { enqueue, isOfflineError, newClientUuid } from "../pos/offlineQueue";
 import { useScanner } from "../pos/useScanner";
@@ -129,6 +131,7 @@ function loadHeld(): HeldSale[] {
 export function NewOrder() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [orderDiscount, setOrderDiscount] = useState<number>(0);
@@ -197,7 +200,7 @@ export function NewOrder() {
         .catch(() => null));
 
     if (!found) {
-      notifications.show({ title: "Unknown barcode", message: code, color: "red" });
+      notifications.show({ title: t.newOrder.unknownBarcode, message: code, color: "red" });
       return;
     }
     // A weighed item starts at zero — the cashier keys in what the scale says.
@@ -205,8 +208,8 @@ export function NewOrder() {
     if (found.sold_by === "WEIGHT") {
       notifications.show({
         title: found.name,
-        message: `Sold by ${found.unit} — enter the quantity.`,
-        color: "blue",
+        message: t.newOrder.weighedHint(found.unit),
+        color: "teal",
       });
     }
   }
@@ -248,7 +251,7 @@ export function NewOrder() {
     if (cart.length === 0) return;
     const label =
       customers.data?.find((c) => String(c.id) === customerId)?.name ||
-      `${cart.length} item${cart.length === 1 ? "" : "s"} · ${total.toFixed(2)}`;
+      t.newOrder.heldLabel(cart.length, total.toFixed(2));
     setHeld((prev) => [
       ...prev,
       {
@@ -260,14 +263,14 @@ export function NewOrder() {
       },
     ]);
     clearSale();
-    notifications.show({ title: "Sale held", message: label, color: "blue" });
+    notifications.show({ title: t.newOrder.saleHeld, message: label, color: "teal" });
   }
 
   function resumeSale(sale: HeldSale) {
     if (cart.length > 0) {
       notifications.show({
-        title: "Finish or hold the current sale first",
-        message: "The till already has items on it.",
+        title: t.newOrder.busyTitle,
+        message: t.newOrder.busyMessage,
         color: "orange",
       });
       return;
@@ -309,11 +312,11 @@ export function NewOrder() {
       const resp = await api.post<Order>("/orders/", payload);
       const change = Number(resp.data.change_given || 0);
       notifications.show({
-        title: `Sale ${resp.data.receipt_number}`,
-        message:
-          change > 0
-            ? `Total ${Number(resp.data.total).toFixed(2)} — change ${change.toFixed(2)}`
-            : `Total ${Number(resp.data.total).toFixed(2)}`,
+        title: t.newOrder.saleDone(resp.data.receipt_number ?? ""),
+        message: t.newOrder.saleTotal(
+          Number(resp.data.total).toFixed(2),
+          change > 0 ? change.toFixed(2) : undefined
+        ),
         color: "green",
       });
       await printOrderReceipt(resp.data);
@@ -331,8 +334,8 @@ export function NewOrder() {
           payload, payments, total, cart.map((l) => l.product)
         );
         notifications.show({
-          title: "Saved offline",
-          message: "No connection — this sale will sync automatically.",
+          title: t.newOrder.savedOffline,
+          message: t.newOrder.savedOfflineMessage,
           color: "yellow",
         });
         await printOrderReceipt(offlineOrder);
@@ -350,7 +353,7 @@ export function NewOrder() {
         setSubmitting(false);
         if (pin) {
           notifications.show({
-            title: "PIN not accepted",
+            title: t.newOrder.pinRejected,
             message: String(data.override_pin),
             color: "red",
           });
@@ -364,8 +367,8 @@ export function NewOrder() {
           ? Object.entries(data)
               .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(" ") : v}`)
               .join(" · ")
-          : "Checkout failed");
-      notifications.show({ title: "Checkout failed", message: detail, color: "red" });
+          : t.newOrder.checkoutFailed);
+      notifications.show({ title: t.newOrder.checkoutFailed, message: detail, color: "red" });
     } finally {
       setSubmitting(false);
     }
@@ -374,12 +377,11 @@ export function NewOrder() {
   if (shift.isSuccess && !shift.data) {
     return (
       <Stack>
-        <Title order={2}>New Order</Title>
-        <Alert color="orange" icon={<IconAlertTriangle />} title="No shift is open">
-          A till session must be open before you can take payment, so cash is
-          accountable to someone.
+        <Title order={2}>{t.nav.newOrder}</Title>
+        <Alert color="orange" icon={<IconAlertTriangle />} title={t.newOrder.noShiftTitle}>
+          {t.newOrder.noShiftBody}
           <Group mt="md">
-            <Button onClick={() => navigate("/shift")}>Open a shift</Button>
+            <Button onClick={() => navigate("/shift")}>{t.newOrder.openShift}</Button>
           </Group>
         </Alert>
       </Stack>
@@ -389,18 +391,18 @@ export function NewOrder() {
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>New Order</Title>
+        <Title order={2}>{t.nav.newOrder}</Title>
         <Group>
           {shift.data && (
             <Badge size="lg" variant="light">
-              Shift {shift.data.number}
+              {t.shift.title(shift.data.number)}
             </Badge>
           )}
           {held.length > 0 && (
             <Menu>
               <Menu.Target>
                 <Button variant="light" leftSection={<IconPlayerPlay size={16} />}>
-                  Held sales ({held.length})
+                  {t.newOrder.heldSales(held.length)}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
@@ -422,8 +424,8 @@ export function NewOrder() {
               <TextInput
                 ref={scanRef}
                 data-scan="true"
-                label="Scan barcode"
-                placeholder="Scan or type a barcode, then press Enter"
+                label={t.newOrder.scanLabel}
+                placeholder={t.newOrder.scanPlaceholder}
                 leftSection={<IconBarcode size={18} />}
                 value={scanValue}
                 onChange={(e) => setScanValue(e.currentTarget.value)}
@@ -435,13 +437,18 @@ export function NewOrder() {
                 }}
               />
               <Select
-                label="Or pick a product"
-                placeholder="Search by name"
+                label={t.newOrder.pickLabel}
+                placeholder={t.newOrder.pickPlaceholder}
                 searchable
                 value={null}
                 data={(products.data ?? []).map((p) => ({
                   value: String(p.id),
-                  label: `${p.name} — ${Number(p.price).toFixed(2)}/${p.unit} (stock ${p.quantity_in_storage})`,
+                  label: t.newOrder.productOption(
+                    p.name,
+                    Number(p.price).toFixed(2),
+                    p.unit,
+                    p.quantity_in_storage
+                  ),
                 }))}
                 onChange={addProductById}
               />
@@ -449,10 +456,10 @@ export function NewOrder() {
               <Table>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>Product</Table.Th>
-                    <Table.Th w={140}>Qty</Table.Th>
-                    <Table.Th w={130}>Discount</Table.Th>
-                    <Table.Th w={110}>Line</Table.Th>
+                    <Table.Th>{t.newOrder.product}</Table.Th>
+                    <Table.Th w={140}>{t.common.qty}</Table.Th>
+                    <Table.Th w={130}>{t.common.discount}</Table.Th>
+                    <Table.Th w={110}>{t.common.line}</Table.Th>
                     <Table.Th w={50} />
                   </Table.Tr>
                 </Table.Thead>
@@ -461,7 +468,7 @@ export function NewOrder() {
                     <Table.Tr>
                       <Table.Td colSpan={5}>
                         <Text c="dimmed" ta="center" py="md">
-                          Scan an item to begin.
+                          {t.newOrder.emptyCart}
                         </Text>
                       </Table.Td>
                     </Table.Tr>
@@ -474,11 +481,16 @@ export function NewOrder() {
                     return (
                       <Table.Tr key={l.product.id}>
                         <Table.Td>
-                          <Text>{l.product.name}</Text>
-                          <Text size="xs" c="dimmed">
-                            {Number(l.product.price).toFixed(2)} / {l.product.unit}
-                            {weighed && " · by weight"}
-                          </Text>
+                          <Group gap="sm" wrap="nowrap">
+                            <ProductThumb src={productThumbUrl(l.product.image_url)} size={40} />
+                            <div>
+                              <Text>{l.product.name}</Text>
+                              <Text size="xs" c="dimmed">
+                                {Number(l.product.price).toFixed(2)} / {l.product.unit}
+                                {weighed && t.newOrder.byWeight}
+                              </Text>
+                            </div>
+                          </Group>
                         </Table.Td>
                         <Table.Td>
                           <NumberInput
@@ -489,9 +501,9 @@ export function NewOrder() {
                             onChange={(v) => setQty(l.product.id, Number(v) || 0)}
                             error={
                               l.quantity <= 0
-                                ? "Required"
+                                ? t.newOrder.qtyRequired
                                 : !weighed && !Number.isInteger(l.quantity)
-                                  ? "Whole units"
+                                  ? t.newOrder.wholeUnits
                                   : undefined
                             }
                           />
@@ -510,7 +522,7 @@ export function NewOrder() {
                             color="red"
                             variant="subtle"
                             onClick={() => removeLine(l.product.id)}
-                            aria-label="Remove line"
+                            aria-label={t.newOrder.removeLine}
                           >
                             <IconTrash size={16} />
                           </ActionIcon>
@@ -528,8 +540,8 @@ export function NewOrder() {
           <Card withBorder radius="md">
             <Stack>
               <Select
-                label="Customer (optional)"
-                placeholder="Walk-in"
+                label={t.newOrder.customerLabel}
+                placeholder={t.common.walkIn}
                 searchable
                 clearable
                 value={customerId}
@@ -540,7 +552,7 @@ export function NewOrder() {
                 onChange={setCustomerId}
               />
               <NumberInput
-                label="Order discount"
+                label={t.newOrder.orderDiscount}
                 min={0}
                 max={subtotal}
                 decimalScale={2}
@@ -549,12 +561,12 @@ export function NewOrder() {
               />
 
               <Group justify="space-between">
-                <Text c="dimmed">Subtotal</Text>
+                <Text c="dimmed">{t.common.subtotal}</Text>
                 <Text>{subtotal.toFixed(2)}</Text>
               </Group>
               <Group justify="space-between">
                 <Text size="lg" fw={600}>
-                  Total
+                  {t.common.total}
                 </Text>
                 <Text size="xl" fw={700}>
                   {total.toFixed(2)}
@@ -566,14 +578,14 @@ export function NewOrder() {
                 disabled={cart.length === 0 || invalidLines.length > 0}
                 onClick={() => setPayOpen(true)}
               >
-                Take payment
+                {t.newOrder.takePayment}
               </Button>
               <Group grow>
                 <Button variant="light" onClick={holdSale} disabled={cart.length === 0}>
-                  Hold
+                  {t.newOrder.hold}
                 </Button>
                 <Button variant="default" onClick={clearSale} disabled={cart.length === 0}>
-                  Clear
+                  {t.newOrder.clear}
                 </Button>
               </Group>
             </Stack>
@@ -592,16 +604,15 @@ export function NewOrder() {
       <Modal
         opened={pinOpen}
         onClose={() => setPinOpen(false)}
-        title="Manager authorisation"
+        title={t.newOrder.pinTitle}
         centered
       >
         <Stack>
           <Text size="sm" c="dimmed">
-            This discount is above the limit a cashier can apply on their own.
-            A supervisor needs to key in their PIN.
+            {t.newOrder.pinBody}
           </Text>
           <PasswordInput
-            label="Manager PIN"
+            label={t.common.managerPin}
             value={pin}
             onChange={(e) => setPin(e.currentTarget.value)}
             data-autofocus
@@ -615,7 +626,7 @@ export function NewOrder() {
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setPinOpen(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               disabled={!pin.trim()}
@@ -625,7 +636,7 @@ export function NewOrder() {
                 setPin("");
               }}
             >
-              Authorise
+              {t.newOrder.authorise}
             </Button>
           </Group>
         </Stack>

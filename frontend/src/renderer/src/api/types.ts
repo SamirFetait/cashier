@@ -32,6 +32,8 @@ export interface Product {
   sold_by: SoldBy;
   is_active: boolean;
   quantity_in_storage: string;
+  /** Versioned full-size photo URL (absolute), or null when there is none. */
+  image_url: string | null;
   created_at: string;
 }
 

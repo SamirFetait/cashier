@@ -10,6 +10,14 @@ import {
 import { join } from "path";
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 
+import iconIco from "../../build/icon.ico?asset";
+import iconPng from "../../build/icon.png?asset";
+
+// userData follows the app's name, and it holds the offline sale queue, held
+// sales, auth tokens and printer settings. Pin it to the folder the app has
+// always used so a product rename can never strand sales banked offline.
+app.setPath("userData", join(app.getPath("appData"), "cashier-desktop"));
+
 let mainWindow: BrowserWindow | null = null;
 
 const authFile = () => join(app.getPath("userData"), "auth.bin");
@@ -22,7 +30,10 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
-    title: "Cashier POS",
+    title: "Fathet Kheer POS",
+    // The .ico carries hand-picked 16-48px frames for the title bar and
+    // taskbar; macOS ignores this and uses the bundle icon.
+    icon: process.platform === "win32" ? iconIco : iconPng,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,

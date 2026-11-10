@@ -21,6 +21,7 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Paginated, Role, User } from "../api/types";
+import { ltr, useI18n } from "../i18n";
 
 interface FormState {
   id?: number;
@@ -41,6 +42,7 @@ const empty: FormState = {
 
 export function Users() {
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [opened, { open, close }] = useDisclosure(false);
   const [form, setForm] = useState<FormState>(empty);
 
@@ -65,15 +67,15 @@ export function Users() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
       close();
-      notifications.show({ message: "User saved", color: "green" });
+      notifications.show({ message: t.users.saved, color: "green" });
     },
-    onError: () => notifications.show({ message: "Save failed", color: "red" }),
+    onError: () => notifications.show({ message: t.common.saveFailed, color: "red" }),
   });
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>Users</Title>
+        <Title order={2}>{t.nav.users}</Title>
         <Button
           leftSection={<IconPlus size={16} />}
           onClick={() => {
@@ -81,7 +83,7 @@ export function Users() {
             open();
           }}
         >
-          Add user
+          {t.users.add}
         </Button>
       </Group>
 
@@ -89,11 +91,11 @@ export function Users() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Username</Table.Th>
-              <Table.Th>Role</Table.Th>
-              <Table.Th>Phone</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Actions</Table.Th>
+              <Table.Th>{t.users.username}</Table.Th>
+              <Table.Th>{t.users.role}</Table.Th>
+              <Table.Th>{t.common.phone}</Table.Th>
+              <Table.Th>{t.common.status}</Table.Th>
+              <Table.Th>{t.common.actions}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -101,14 +103,14 @@ export function Users() {
               <Table.Tr key={u.id}>
                 <Table.Td>{u.username}</Table.Td>
                 <Table.Td>
-                  <Badge color={u.role === "SUPERADMIN" ? "grape" : "blue"}>
-                    {u.role}
+                  <Badge color={u.role === "SUPERADMIN" ? "gold.4" : "teal"} autoContrast>
+                    {t.roles[u.role]}
                   </Badge>
                 </Table.Td>
-                <Table.Td>{u.phone_number || "—"}</Table.Td>
+                <Table.Td>{u.phone_number ? ltr(u.phone_number) : "—"}</Table.Td>
                 <Table.Td>
                   <Badge color={u.is_active ? "green" : "gray"}>
-                    {u.is_active ? "Active" : "Inactive"}
+                    {u.is_active ? t.common.active : t.common.inactive}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
@@ -135,40 +137,41 @@ export function Users() {
         </Table>
       </Card>
 
-      <Modal opened={opened} onClose={close} title={form.id ? "Edit user" : "Add user"}>
+      <Modal opened={opened} onClose={close} title={form.id ? t.users.edit : t.users.add}>
         <Stack>
           <TextInput
-            label="Username"
+            label={t.users.username}
             required
             value={form.username}
             onChange={(e) => setForm({ ...form, username: e.currentTarget.value })}
           />
           <Select
-            label="Role"
+            label={t.users.role}
             data={[
-              { value: "CASHIER", label: "Cashier" },
-              { value: "SUPERADMIN", label: "Super Admin" },
+              { value: "CASHIER", label: t.roles.CASHIER },
+              { value: "SUPERADMIN", label: t.roles.SUPERADMIN },
             ]}
             value={form.role}
             onChange={(v) => setForm({ ...form, role: (v as Role) || "CASHIER" })}
           />
           <TextInput
-            label="Phone number"
+            label={t.common.phoneNumber}
+            dir="ltr"
             value={form.phone_number}
             onChange={(e) => setForm({ ...form, phone_number: e.currentTarget.value })}
           />
           <PasswordInput
-            label={form.id ? "New password (leave blank to keep)" : "Password"}
+            label={form.id ? t.users.newPassword : t.users.password}
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
           />
           <Switch
-            label="Active"
+            label={t.common.active}
             checked={form.is_active}
             onChange={(e) => setForm({ ...form, is_active: e.currentTarget.checked })}
           />
           <Button loading={save.isPending} onClick={() => save.mutate(form)}>
-            Save
+            {t.common.save}
           </Button>
         </Stack>
       </Modal>

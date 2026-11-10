@@ -21,6 +21,7 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Shift, ShiftReport } from "../api/types";
+import { label, ltr, useI18n } from "../i18n";
 import { platform } from "../platform";
 import { printShiftReport } from "../receipt/receipt";
 
@@ -46,6 +47,7 @@ function apiError(err: any, fallback: string) {
 
 export function ShiftPage() {
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [openFloat, setOpenFloat] = useState<number | "">(0);
   const [terminal, setTerminal] = useState("");
   const [closeOpen, setCloseOpen] = useState(false);
@@ -79,16 +81,16 @@ export function ShiftPage() {
       ).data,
     onSuccess: (data) => {
       notifications.show({
-        title: "Shift open",
-        message: `${data.number} with float ${money(data.opening_float)}`,
+        title: t.shift.opened,
+        message: t.shift.openedMessage(data.number, money(data.opening_float)),
         color: "green",
       });
       qc.invalidateQueries({ queryKey: ["shift"] });
     },
     onError: (err) =>
       notifications.show({
-        title: "Could not open shift",
-        message: apiError(err, "Failed"),
+        title: t.shift.openFailed,
+        message: apiError(err, t.common.failed),
         color: "red",
       }),
   });
@@ -108,8 +110,8 @@ export function ShiftPage() {
     },
     onError: (err) =>
       notifications.show({
-        title: "Could not close shift",
-        message: apiError(err, "Failed"),
+        title: t.shift.closeFailed,
+        message: apiError(err, t.common.failed),
         color: "red",
       }),
   });
@@ -124,7 +126,7 @@ export function ShiftPage() {
         })
       ).data,
     onSuccess: () => {
-      notifications.show({ title: "Cash movement recorded", message: cashReason, color: "green" });
+      notifications.show({ title: t.shift.movementRecorded, message: cashReason, color: "green" });
       setCashOpen(false);
       setCashAmount("");
       setCashReason("");
@@ -132,8 +134,8 @@ export function ShiftPage() {
     },
     onError: (err) =>
       notifications.show({
-        title: "Could not record movement",
-        message: apiError(err, "Failed"),
+        title: t.shift.movementFailed,
+        message: apiError(err, t.common.failed),
         color: "red",
       }),
   });
@@ -141,22 +143,22 @@ export function ShiftPage() {
   if (!shift) {
     return (
       <Stack>
-        <Title order={2}>Shift</Title>
+        <Title order={2}>{t.shift.heading}</Title>
         {zReport && <ZReportCard report={zReport} onDismiss={() => setZReport(null)} />}
         <Card withBorder radius="md" maw={480}>
           <Stack>
-            <Text>No shift is open. Count the drawer and open one to start selling.</Text>
+            <Text>{t.shift.noShift}</Text>
             <NumberInput
-              label="Opening float"
-              description="Cash physically in the drawer now"
+              label={t.shift.openingFloat}
+              description={t.shift.openingFloatHint}
               min={0}
               decimalScale={2}
               value={openFloat}
               onChange={(v) => setOpenFloat(v === "" ? "" : Number(v))}
             />
             <TextInput
-              label="Terminal (optional)"
-              placeholder="Till 1"
+              label={t.shift.terminalLabel}
+              placeholder={t.shift.terminalPlaceholder}
               value={terminal}
               onChange={(e) => setTerminal(e.currentTarget.value)}
             />
@@ -164,7 +166,7 @@ export function ShiftPage() {
               onClick={() => openMutation.mutate()}
               loading={openMutation.isPending}
             >
-              Open shift
+              {t.shift.open}
             </Button>
           </Stack>
         </Card>
@@ -175,17 +177,17 @@ export function ShiftPage() {
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>Shift {shift.number}</Title>
+        <Title order={2}>{t.shift.title(shift.number)}</Title>
         <Group>
           <Badge size="lg" color="green">
-            Open
+            {t.shift.statusOpen}
           </Badge>
           <Button
             variant="light"
             leftSection={<IconCash size={16} />}
             onClick={() => setCashOpen(true)}
           >
-            Cash in / out
+            {t.shift.cashInOut}
           </Button>
           <Button
             variant="default"
@@ -193,14 +195,14 @@ export function ShiftPage() {
               const result = await platform.openCashDrawer();
               if (!result.success) {
                 notifications.show({
-                  title: "Could not open drawer",
-                  message: result.error ?? "No thermal printer configured.",
+                  title: t.shift.drawerFailed,
+                  message: result.error ?? t.shift.noPrinter,
                   color: "red",
                 });
               }
             }}
           >
-            Open drawer
+            {t.shift.openDrawer}
           </Button>
           <Button
             variant="default"
@@ -211,14 +213,14 @@ export function ShiftPage() {
               if (!result.success) window.print();
             }}
           >
-            Print X
+            {t.shift.printX}
           </Button>
           <Button
             color="orange"
             leftSection={<IconLock size={16} />}
             onClick={() => setCloseOpen(true)}
           >
-            Close shift
+            {t.shift.close}
           </Button>
         </Group>
       </Group>
@@ -228,37 +230,37 @@ export function ShiftPage() {
           <Card withBorder radius="md">
             <Title order={4} mb="sm">
               <Group gap="xs">
-                <IconReceipt size={18} /> X report
+                <IconReceipt size={18} /> {t.shift.xReport}
               </Group>
             </Title>
             <Text size="xs" c="dimmed" mb="sm">
-              A mid-shift read. Does not close the drawer.
+              {t.shift.xReportHint}
             </Text>
             <Table>
               <Table.Tbody>
                 <Table.Tr>
-                  <Table.Td>Opened by</Table.Td>
-                  <Table.Td ta="right">{report?.opened_by}</Table.Td>
+                  <Table.Td>{t.shift.openedBy}</Table.Td>
+                  <Table.Td ta="end">{report?.opened_by}</Table.Td>
                 </Table.Tr>
                 <Table.Tr>
-                  <Table.Td>Opening float</Table.Td>
-                  <Table.Td ta="right">{money(report?.opening_float)}</Table.Td>
+                  <Table.Td>{t.shift.openingFloat}</Table.Td>
+                  <Table.Td ta="end">{money(report?.opening_float)}</Table.Td>
                 </Table.Tr>
                 <Table.Tr>
-                  <Table.Td>Sales</Table.Td>
-                  <Table.Td ta="right">
+                  <Table.Td>{t.common.sales}</Table.Td>
+                  <Table.Td ta="end">
                     {money(report?.sales_total)} ({report?.order_count})
                   </Table.Td>
                 </Table.Tr>
                 <Table.Tr>
-                  <Table.Td>Voids / refunds</Table.Td>
-                  <Table.Td ta="right">
+                  <Table.Td>{t.shift.voidsRefunds}</Table.Td>
+                  <Table.Td ta="end">
                     {report?.void_count} / {report?.refund_count}
                   </Table.Td>
                 </Table.Tr>
                 <Table.Tr>
-                  <Table.Td fw={600}>Expected in drawer</Table.Td>
-                  <Table.Td ta="right" fw={700}>
+                  <Table.Td fw={600}>{t.shift.expectedInDrawer}</Table.Td>
+                  <Table.Td ta="end" fw={700}>
                     {money(report?.expected_cash)}
                   </Table.Td>
                 </Table.Tr>
@@ -270,43 +272,43 @@ export function ShiftPage() {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Card withBorder radius="md">
             <Title order={4} mb="sm">
-              Payments taken
+              {t.shift.paymentsTaken}
             </Title>
             <Table>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Method</Table.Th>
-                  <Table.Th ta="right">Count</Table.Th>
-                  <Table.Th ta="right">Total</Table.Th>
+                  <Table.Th>{t.common.method}</Table.Th>
+                  <Table.Th ta="end">{t.shift.count}</Table.Th>
+                  <Table.Th ta="end">{t.common.total}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {(report?.payments ?? []).length === 0 && (
                   <Table.Tr>
                     <Table.Td colSpan={3}>
-                      <Text c="dimmed">No payments yet.</Text>
+                      <Text c="dimmed">{t.shift.noPayments}</Text>
                     </Table.Td>
                   </Table.Tr>
                 )}
                 {(report?.payments ?? []).map((p) => (
                   <Table.Tr key={p.method}>
-                    <Table.Td>{p.method}</Table.Td>
-                    <Table.Td ta="right">{p.count}</Table.Td>
-                    <Table.Td ta="right">{money(p.total)}</Table.Td>
+                    <Table.Td>{label(t.paymentMethods, p.method)}</Table.Td>
+                    <Table.Td ta="end">{p.count}</Table.Td>
+                    <Table.Td ta="end">{money(p.total)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
 
             <Title order={4} mt="lg" mb="sm">
-              Drawer movements
+              {t.shift.drawerMovements}
             </Title>
             <Table>
               <Table.Tbody>
                 {(report?.cash_movements ?? []).map((m) => (
                   <Table.Tr key={m.kind}>
-                    <Table.Td>{m.kind}</Table.Td>
-                    <Table.Td ta="right">{money(m.total)}</Table.Td>
+                    <Table.Td>{label(t.cashKinds, m.kind)}</Table.Td>
+                    <Table.Td ta="end">{money(m.total)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -318,16 +320,13 @@ export function ShiftPage() {
       <Modal
         opened={closeOpen}
         onClose={() => setCloseOpen(false)}
-        title="Close shift"
+        title={t.shift.close}
         centered
       >
         <Stack>
-          <Alert color="blue">
-            Count the drawer and enter the total. The expected figure is hidden
-            until you submit, so the count stays honest.
-          </Alert>
+          <Alert color="teal">{t.shift.closeHint}</Alert>
           <NumberInput
-            label="Counted cash"
+            label={t.shift.countedCash}
             min={0}
             decimalScale={2}
             value={counted}
@@ -336,7 +335,7 @@ export function ShiftPage() {
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setCloseOpen(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               color="orange"
@@ -344,7 +343,7 @@ export function ShiftPage() {
               loading={closeMutation.isPending}
               disabled={counted === ""}
             >
-              Close and reconcile
+              {t.shift.closeAndReconcile}
             </Button>
           </Group>
         </Stack>
@@ -353,44 +352,44 @@ export function ShiftPage() {
       <Modal
         opened={cashOpen}
         onClose={() => setCashOpen(false)}
-        title="Cash in / out"
+        title={t.shift.cashInOut}
         centered
       >
         <Stack>
           <Select
-            label="Type"
+            label={t.shift.movementType}
             data={[
-              { value: "PAY_IN", label: "Paid in (money added)" },
-              { value: "PAY_OUT", label: "Paid out (expense)" },
-              { value: "DROP", label: "Drop to safe" },
+              { value: "PAY_IN", label: t.shift.kindPayIn },
+              { value: "PAY_OUT", label: t.shift.kindPayOut },
+              { value: "DROP", label: t.shift.kindDrop },
             ]}
             value={cashKind}
             onChange={(v) => setCashKind(v || "PAY_OUT")}
             allowDeselect={false}
           />
           <NumberInput
-            label="Amount"
+            label={t.common.amount}
             min={0}
             decimalScale={2}
             value={cashAmount}
             onChange={(v) => setCashAmount(v === "" ? "" : Number(v))}
           />
           <TextInput
-            label="Reason"
-            description="Required — this is what makes the drawer auditable"
+            label={t.common.reason}
+            description={t.shift.reasonHint}
             value={cashReason}
             onChange={(e) => setCashReason(e.currentTarget.value)}
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setCashOpen(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               onClick={() => cashMutation.mutate()}
               loading={cashMutation.isPending}
               disabled={!cashReason.trim() || !cashAmount}
             >
-              Record
+              {t.shift.record}
             </Button>
           </Group>
         </Stack>
@@ -406,45 +405,45 @@ function ZReportCard({
   report: ShiftReport;
   onDismiss: () => void;
 }) {
+  const { t } = useI18n();
   const variance = Number(report.variance ?? 0);
   const over = variance > 0;
   const short = variance < 0;
   return (
     <Card withBorder radius="md" maw={520}>
       <Group justify="space-between" mb="sm">
-        <Title order={4}>Z report — {report.shift}</Title>
+        <Title order={4}>{t.shift.zReport(report.shift)}</Title>
         <Badge color={variance === 0 ? "green" : short ? "red" : "yellow"}>
-          {variance === 0 ? "Balanced" : short ? "Short" : "Over"}
+          {variance === 0 ? t.shift.balanced : short ? t.shift.short : t.shift.over}
         </Badge>
       </Group>
       <Table>
         <Table.Tbody>
           <Table.Tr>
-            <Table.Td>Sales</Table.Td>
-            <Table.Td ta="right">
+            <Table.Td>{t.common.sales}</Table.Td>
+            <Table.Td ta="end">
               {money(report.sales_total)} ({report.order_count})
             </Table.Td>
           </Table.Tr>
           <Table.Tr>
-            <Table.Td>Expected</Table.Td>
-            <Table.Td ta="right">{money(report.expected_cash)}</Table.Td>
+            <Table.Td>{t.shift.expected}</Table.Td>
+            <Table.Td ta="end">{money(report.expected_cash)}</Table.Td>
           </Table.Tr>
           <Table.Tr>
-            <Table.Td>Counted</Table.Td>
-            <Table.Td ta="right">{money(report.counted_cash)}</Table.Td>
+            <Table.Td>{t.shift.counted}</Table.Td>
+            <Table.Td ta="end">{money(report.counted_cash)}</Table.Td>
           </Table.Tr>
           <Table.Tr>
-            <Table.Td fw={600}>Variance</Table.Td>
-            <Table.Td ta="right" fw={700} c={variance === 0 ? undefined : short ? "red" : "yellow"}>
-              {over ? "+" : ""}
-              {money(report.variance)}
+            <Table.Td fw={600}>{t.shift.variance}</Table.Td>
+            <Table.Td ta="end" fw={700} c={variance === 0 ? undefined : short ? "red" : "yellow"}>
+              {ltr(`${over ? "+" : ""}${money(report.variance)}`)}
             </Table.Td>
           </Table.Tr>
         </Table.Tbody>
       </Table>
       <Group justify="flex-end" mt="md">
         <Button variant="default" onClick={onDismiss}>
-          Dismiss
+          {t.shift.dismiss}
         </Button>
         <Button
           onClick={async () => {
@@ -455,7 +454,7 @@ function ZReportCard({
             }
           }}
         >
-          Print Z report
+          {t.shift.printZ}
         </Button>
       </Group>
     </Card>

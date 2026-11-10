@@ -19,6 +19,7 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Customer, Order, Paginated } from "../api/types";
+import { ltr, useI18n } from "../i18n";
 
 interface FormState {
   id?: number;
@@ -32,6 +33,7 @@ const empty: FormState = { name: "", phone_number: "", address: "", notes: "" };
 
 export function Customers() {
   const qc = useQueryClient();
+  const { t, formatDate } = useI18n();
   const [opened, { open, close }] = useDisclosure(false);
   const [historyOpen, history] = useDisclosure(false);
   const [form, setForm] = useState<FormState>(empty);
@@ -65,15 +67,15 @@ export function Customers() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customers"] });
       close();
-      notifications.show({ message: "Customer saved", color: "green" });
+      notifications.show({ message: t.customers.saved, color: "green" });
     },
-    onError: () => notifications.show({ message: "Save failed", color: "red" }),
+    onError: () => notifications.show({ message: t.common.saveFailed, color: "red" }),
   });
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>Customers</Title>
+        <Title order={2}>{t.nav.customers}</Title>
         <Button
           leftSection={<IconPlus size={16} />}
           onClick={() => {
@@ -81,7 +83,7 @@ export function Customers() {
             open();
           }}
         >
-          Add customer
+          {t.customers.add}
         </Button>
       </Group>
 
@@ -89,19 +91,19 @@ export function Customers() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Phone</Table.Th>
-              <Table.Th>Address</Table.Th>
-              <Table.Th>Orders</Table.Th>
-              <Table.Th>Total Spent</Table.Th>
-              <Table.Th>Actions</Table.Th>
+              <Table.Th>{t.common.name}</Table.Th>
+              <Table.Th>{t.common.phone}</Table.Th>
+              <Table.Th>{t.common.address}</Table.Th>
+              <Table.Th>{t.common.orders}</Table.Th>
+              <Table.Th>{t.customers.totalSpent}</Table.Th>
+              <Table.Th>{t.common.actions}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {customers.data?.map((c) => (
               <Table.Tr key={c.id}>
                 <Table.Td>{c.name}</Table.Td>
-                <Table.Td>{c.phone_number}</Table.Td>
+                <Table.Td>{ltr(c.phone_number)}</Table.Td>
                 <Table.Td>{c.address || "—"}</Table.Td>
                 <Table.Td>{c.order_count}</Table.Td>
                 <Table.Td>{Number(c.total_spent).toFixed(2)}</Table.Td>
@@ -124,7 +126,7 @@ export function Customers() {
                     </ActionIcon>
                     <ActionIcon
                       variant="subtle"
-                      color="grape"
+                      color="wood"
                       onClick={() => {
                         setHistoryCustomer(c);
                         history.open();
@@ -140,32 +142,33 @@ export function Customers() {
         </Table>
       </Card>
 
-      <Modal opened={opened} onClose={close} title={form.id ? "Edit customer" : "Add customer"}>
+      <Modal opened={opened} onClose={close} title={form.id ? t.customers.edit : t.customers.add}>
         <Stack>
           <TextInput
-            label="Name"
+            label={t.common.name}
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
           />
           <TextInput
-            label="Phone number"
+            label={t.common.phoneNumber}
             required
+            dir="ltr"
             value={form.phone_number}
             onChange={(e) => setForm({ ...form, phone_number: e.currentTarget.value })}
           />
           <TextInput
-            label="Address"
+            label={t.common.address}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.currentTarget.value })}
           />
           <Textarea
-            label="Notes"
+            label={t.common.notes}
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
           />
           <Button loading={save.isPending} onClick={() => save.mutate(form)}>
-            Save
+            {t.common.save}
           </Button>
         </Stack>
       </Modal>
@@ -173,7 +176,7 @@ export function Customers() {
       <Modal
         opened={historyOpen}
         onClose={history.close}
-        title={`Order history — ${historyCustomer?.name ?? ""}`}
+        title={t.customers.history(historyCustomer?.name ?? "")}
         size="lg"
       >
         {orderHistory.data && orderHistory.data.length > 0 ? (
@@ -181,16 +184,16 @@ export function Customers() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>#</Table.Th>
-                <Table.Th>Date</Table.Th>
-                <Table.Th>Items</Table.Th>
-                <Table.Th>Total</Table.Th>
+                <Table.Th>{t.common.date}</Table.Th>
+                <Table.Th>{t.common.items}</Table.Th>
+                <Table.Th>{t.common.total}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {orderHistory.data.map((o) => (
                 <Table.Tr key={o.id}>
                   <Table.Td>{o.id}</Table.Td>
-                  <Table.Td>{new Date(o.created_at).toLocaleDateString()}</Table.Td>
+                  <Table.Td>{formatDate(o.created_at)}</Table.Td>
                   <Table.Td>{o.items.length}</Table.Td>
                   <Table.Td>{Number(o.total).toFixed(2)}</Table.Td>
                 </Table.Tr>
@@ -198,7 +201,7 @@ export function Customers() {
             </Table.Tbody>
           </Table>
         ) : (
-          <Text c="dimmed">No orders yet.</Text>
+          <Text c="dimmed">{t.customers.noOrders}</Text>
         )}
       </Modal>
     </Stack>

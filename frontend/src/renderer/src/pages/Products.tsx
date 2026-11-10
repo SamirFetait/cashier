@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Card,
+  FileButton,
   Group,
   Modal,
   NumberInput,
@@ -16,13 +17,15 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconEdit, IconPackageImport, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconPackageImport, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api/client";
 import type { Category, Paginated, Product, Storage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { ProductThumb, productThumbUrl } from "../components/ProductThumb";
+import { useI18n } from "../i18n";
 
 interface FormState {
   id?: number;
@@ -45,14 +48,50 @@ const empty: FormState = {
   is_active: true,
 };
 
+/** Same limit the server enforces; checked here to fail before uploading. */
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+interface PhotoState {
+  /** A photo picked in this form, uploaded on save. */
+  file: File | null;
+  /** What the form shows: the saved photo, or a local preview of the pick. */
+  preview: string | null;
+  /** Delete the saved photo on save. */
+  remove: boolean;
+}
+
+const noPhoto: PhotoState = { file: null, preview: null, remove: false };
+
+/** The product itself saved; only its photo did not. */
+class PhotoUploadError extends Error {
+  constructor(
+    readonly product: Product,
+    readonly reason: unknown
+  ) {
+    super("Photo upload failed");
+  }
+}
+
 export function Products() {
   const { isSuperadmin } = useAuth();
+  const { t } = useI18n();
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [restockOpen, restock] = useDisclosure(false);
   const [form, setForm] = useState<FormState>(empty);
+  const [photo, setPhoto] = useState<PhotoState>(noPhoto);
+  const resetFilePicker = useRef<() => void>(null);
   const [restockTarget, setRestockTarget] = useState<Product | null>(null);
   const [restockQty, setRestockQty] = useState<number>(0);
+
+  // A picked photo is previewed from an object URL; free each one once it
+  // has been replaced or the form is gone.
+  useEffect(() => {
+    const preview = photo.preview;
+    return () => {
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
+  }, [photo.preview]);
 
   const products = useQuery({
     queryKey: ["products"],
@@ -72,7 +111,7 @@ export function Products() {
   });
 
   const save = useMutation({
-    mutationFn: async (f: FormState) => {
+    mutationFn: async ({ f, photo }: { f: FormState; photo: PhotoState }) => {
       const payload = {
         name: f.name,
         category: f.category ? Number(f.category) : null,
@@ -82,25 +121,55 @@ export function Products() {
         barcode: f.barcode || null,
         is_active: f.is_active,
       };
-      if (f.id) return api.patch(`/products/${f.id}/`, payload);
-      return api.post("/products/", payload);
+      const product = (
+        f.id
+          ? await api.patch<Product>(`/products/${f.id}/`, payload)
+          : await api.post<Product>("/products/", payload)
+      ).data;
+      // The photo is its own request, once there is a product to attach it to.
+      try {
+        if (photo.file) {
+          const body = new FormData();
+          body.append("image", photo.file);
+          await api.post(`/products/${product.id}/image/`, body);
+        } else if (photo.remove) {
+          await api.delete(`/products/${product.id}/image/`);
+        }
+      } catch (err) {
+        throw new PhotoUploadError(product, err);
+      }
+      return product;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       close();
-      notifications.show({ message: "Product saved", color: "green" });
+      notifications.show({ message: t.products.saved, color: "green" });
     },
-    onError: () => notifications.show({ message: "Save failed", color: "red" }),
+    onError: (err) => {
+      if (err instanceof PhotoUploadError) {
+        // Stay on the saved product, so saving again updates it instead of
+        // creating a second copy.
+        qc.invalidateQueries({ queryKey: ["products"] });
+        setForm((current) => ({ ...current, id: err.product.id }));
+        const data = (err.reason as any)?.response?.data;
+        notifications.show({
+          message: t.products.photoFailed(data?.image?.[0] ?? data?.detail ?? t.common.unknownError),
+          color: "red",
+        });
+        return;
+      }
+      notifications.show({ message: t.common.saveFailed, color: "red" });
+    },
   });
 
   const remove = useMutation({
     mutationFn: async (id: number) => api.delete(`/products/${id}/`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
-      notifications.show({ message: "Product deleted", color: "green" });
+      notifications.show({ message: t.products.deleted, color: "green" });
     },
     onError: () =>
-      notifications.show({ message: "Cannot delete (in use?)", color: "red" }),
+      notifications.show({ message: t.products.deleteFailed, color: "red" }),
   });
 
   const doRestock = useMutation({
@@ -119,13 +188,14 @@ export function Products() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       restock.close();
-      notifications.show({ message: "Stock updated", color: "green" });
+      notifications.show({ message: t.products.stockUpdated, color: "green" });
     },
-    onError: () => notifications.show({ message: "Restock failed", color: "red" }),
+    onError: () => notifications.show({ message: t.products.restockFailed, color: "red" }),
   });
 
   function openCreate() {
     setForm(empty);
+    setPhoto(noPhoto);
     open();
   }
   function openEdit(p: Product) {
@@ -139,16 +209,31 @@ export function Products() {
       barcode: p.barcode ?? "",
       is_active: p.is_active,
     });
+    setPhoto({ file: null, preview: productThumbUrl(p.image_url), remove: false });
     open();
+  }
+
+  function pickPhoto(file: File | null) {
+    resetFilePicker.current?.(); // so picking the same file again still registers
+    if (!file) return;
+    if (file.size > MAX_PHOTO_BYTES) {
+      notifications.show({ message: t.products.photoTooLarge, color: "red" });
+      return;
+    }
+    setPhoto({ file, preview: URL.createObjectURL(file), remove: false });
+  }
+
+  function removePhoto() {
+    setPhoto({ file: null, preview: null, remove: Boolean(form.id) });
   }
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>Products & Storage</Title>
+        <Title order={2}>{t.nav.products}</Title>
         {isSuperadmin && (
           <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Add product
+            {t.products.add}
           </Button>
         )}
       </Group>
@@ -157,24 +242,28 @@ export function Products() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Category</Table.Th>
-              <Table.Th>Price</Table.Th>
-              <Table.Th>In Storage</Table.Th>
-              <Table.Th>Status</Table.Th>
-              {isSuperadmin && <Table.Th>Actions</Table.Th>}
+              <Table.Th w={56} />
+              <Table.Th>{t.common.name}</Table.Th>
+              <Table.Th>{t.products.category}</Table.Th>
+              <Table.Th>{t.common.price}</Table.Th>
+              <Table.Th>{t.products.inStorage}</Table.Th>
+              <Table.Th>{t.common.status}</Table.Th>
+              {isSuperadmin && <Table.Th>{t.common.actions}</Table.Th>}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {products.data?.map((p) => (
               <Table.Tr key={p.id}>
+                <Table.Td>
+                  <ProductThumb src={productThumbUrl(p.image_url)} />
+                </Table.Td>
                 <Table.Td>{p.name}</Table.Td>
                 <Table.Td>{p.category_name ?? "—"}</Table.Td>
                 <Table.Td>{Number(p.price).toFixed(2)}</Table.Td>
                 <Table.Td>{p.quantity_in_storage}</Table.Td>
                 <Table.Td>
                   <Badge color={p.is_active ? "green" : "gray"}>
-                    {p.is_active ? "Active" : "Inactive"}
+                    {p.is_active ? t.common.active : t.common.inactive}
                   </Badge>
                 </Table.Td>
                 {isSuperadmin && (
@@ -210,21 +299,50 @@ export function Products() {
         </Table>
         {!isSuperadmin && (
           <Text c="dimmed" size="sm" mt="sm">
-            You have read-only access to products.
+            {t.products.readOnly}
           </Text>
         )}
       </Card>
 
-      <Modal opened={opened} onClose={close} title={form.id ? "Edit product" : "Add product"}>
+      <Modal opened={opened} onClose={close} title={form.id ? t.products.edit : t.products.add}>
         <Stack>
+          <Group wrap="nowrap">
+            <ProductThumb src={photo.preview} size={88} />
+            <Stack gap={6}>
+              <Text size="sm" fw={500}>
+                {t.products.photo}
+              </Text>
+              <Group gap="xs">
+                <FileButton
+                  resetRef={resetFilePicker}
+                  onChange={pickPhoto}
+                  accept="image/png,image/jpeg,image/webp"
+                >
+                  {(props) => (
+                    <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />}>
+                      {photo.preview ? t.products.changePhoto : t.products.choosePhoto}
+                    </Button>
+                  )}
+                </FileButton>
+                {photo.preview && (
+                  <Button size="xs" variant="subtle" color="red" onClick={removePhoto}>
+                    {t.products.removePhoto}
+                  </Button>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed">
+                {t.products.photoHint}
+              </Text>
+            </Stack>
+          </Group>
           <TextInput
-            label="Name"
+            label={t.common.name}
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
           />
           <Select
-            label="Category"
+            label={t.products.category}
             clearable
             data={(categories.data ?? []).map((c) => ({
               value: String(c.id),
@@ -235,14 +353,14 @@ export function Products() {
           />
           <Group grow>
             <NumberInput
-              label="Price"
+              label={t.common.price}
               min={0}
               decimalScale={2}
               value={form.price}
               onChange={(v) => setForm({ ...form, price: Number(v) || 0 })}
             />
             <NumberInput
-              label="Cost"
+              label={t.common.cost}
               min={0}
               decimalScale={2}
               value={form.cost}
@@ -251,34 +369,39 @@ export function Products() {
           </Group>
           <Group grow>
             <TextInput
-              label="Unit"
+              label={t.products.unit}
               value={form.unit}
               onChange={(e) => setForm({ ...form, unit: e.currentTarget.value })}
             />
             <TextInput
-              label="Barcode"
+              label={t.products.barcode}
+              dir="ltr"
               value={form.barcode}
               onChange={(e) => setForm({ ...form, barcode: e.currentTarget.value })}
             />
           </Group>
           <Switch
-            label="Active"
+            label={t.common.active}
             checked={form.is_active}
             onChange={(e) => setForm({ ...form, is_active: e.currentTarget.checked })}
           />
-          <Button loading={save.isPending} onClick={() => save.mutate(form)}>
-            Save
+          <Button loading={save.isPending} onClick={() => save.mutate({ f: form, photo })}>
+            {t.common.save}
           </Button>
         </Stack>
       </Modal>
 
-      <Modal opened={restockOpen} onClose={restock.close} title={`Restock ${restockTarget?.name ?? ""}`}>
+      <Modal
+        opened={restockOpen}
+        onClose={restock.close}
+        title={t.products.restockTitle(restockTarget?.name ?? "")}
+      >
         <Stack>
           <Text size="sm" c="dimmed">
-            Adds stock to the default storage location.
+            {t.products.restockHint}
           </Text>
           <NumberInput
-            label="Quantity to add"
+            label={t.products.restockQty}
             min={1}
             value={restockQty}
             onChange={(v) => setRestockQty(Number(v) || 0)}
@@ -288,7 +411,7 @@ export function Products() {
             disabled={restockQty < 1}
             onClick={() => doRestock.mutate()}
           >
-            Add stock
+            {t.products.addStock}
           </Button>
         </Stack>
       </Modal>

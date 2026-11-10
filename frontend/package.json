@@ -1,7 +1,7 @@
 {
   "name": "cashier-desktop",
   "version": "1.0.0",
-  "description": "Cashier POS desktop client (Electron + React + Vite)",
+  "description": "Fathet Kheer POS desktop client (Electron + React + Vite)",
   "main": "./out/main/index.js",
   "author": "Cashier",
   "scripts": {

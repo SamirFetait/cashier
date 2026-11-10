@@ -1,0 +1,4 @@
+/* Arabic is a joined script: any letter-spacing pulls its letters apart. */
+:root[lang="ar"] .mantine-Badge-root {
+  letter-spacing: normal;
+}
