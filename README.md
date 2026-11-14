@@ -78,6 +78,11 @@ The desktop app is branded for **Fathet Kheer (فاتحة خير)**. See [Brandi
 - **Native-looking window** — on Windows the app draws its own branded title bar, with only the
   system minimize / maximize / close buttons, and no stock Electron menu.
 - **Roles** — Super Admin (full CRUD) and Cashier (read-only catalog, can ring up sales).
+- **Deleting** — super admins delete products, categories, customers, suppliers and users, after
+  a confirmation; every deletion is in the audit log. Anything sales, stock, purchase or shift
+  records still point at is refused (HTTP 409) rather than erased: turn off "Active" instead.
+  Nobody can delete their own account. Sales, shifts and the stock ledger are never deleted;
+  voids and refunds correct them.
 - **Customers**, **suppliers + WhatsApp**, and a **dashboard** with KPI cards and low-stock.
 
 ## Architecture
@@ -364,10 +369,11 @@ Renaming the product does not move local data: the offline sale queue, held sale
 settings stay pinned to the `cashier-desktop` data folder. Keep `appId` unchanged so new
 installers upgrade the old one in place.
 
-## Languages (English / Arabic)
+## Languages (Arabic / English)
 
-The desktop app runs in English or Arabic. Switch with the language button in the header or on
-the login screen; the choice is remembered per terminal. Arabic lays the whole app out
+The desktop app starts in Arabic and also runs in English. Switch with the language button in
+the header or on the login screen; the choice is remembered per terminal, so a terminal switched
+to English stays in English. Arabic lays the whole app out
 right-to-left (sidebar on the right, mirrored chart) and keeps Latin digits, so prices,
 receipt numbers and barcodes read the same in both languages.
 

@@ -8,7 +8,9 @@ export function LanguageToggle() {
   const { lang, t, setLang } = useI18n();
   const next = lang === "ar" ? "en" : "ar";
   return (
-    <Tooltip label={t.language.switch} withArrow>
+    // Below, not above: the button sits right under the window's title bar,
+    // which would cover the tooltip.
+    <Tooltip label={t.language.switch} position="bottom" withArrow>
       <Button
         variant="default"
         h={34}

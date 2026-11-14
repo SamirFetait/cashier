@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -24,6 +23,8 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { Paginated, Supplier, WhatsAppStatus } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { DeleteButton } from "../components/DeleteButton";
+import { IconButton } from "../components/IconButton";
 import { ltr, useI18n } from "../i18n";
 
 interface FormState {
@@ -153,7 +154,8 @@ export function Suppliers() {
                       {t.common.whatsapp}
                     </Button>
                     {isSuperadmin && (
-                      <ActionIcon
+                      <IconButton
+                        label={t.suppliers.edit}
                         variant="subtle"
                         onClick={() => {
                           setForm({
@@ -167,7 +169,16 @@ export function Suppliers() {
                         }}
                       >
                         <IconEdit size={16} />
-                      </ActionIcon>
+                      </IconButton>
+                    )}
+                    {isSuperadmin && (
+                      <DeleteButton
+                        label={t.suppliers.delete}
+                        name={s.name}
+                        url={`/suppliers/${s.id}/`}
+                        queryKey={["suppliers"]}
+                        inUse={t.suppliers.inUse}
+                      />
                     )}
                   </Group>
                 </Table.Td>
@@ -254,7 +265,7 @@ export function Suppliers() {
               <Text size="sm" c="dimmed" ta="center">
                 {t.suppliers.scanHint}
               </Text>
-              <Image src={status.data.qr} w={260} h={260} />
+              <Image src={status.data.qr} alt={t.suppliers.qrAlt} w={260} h={260} />
             </>
           )}
           {status.data && !status.data.connected && !status.data.qr && (

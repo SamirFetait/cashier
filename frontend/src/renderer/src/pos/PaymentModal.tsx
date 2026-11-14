@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -17,6 +16,7 @@ import { IconTrash } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { PaymentMethod } from "../api/types";
+import { IconButton } from "../components/IconButton";
 import { useI18n } from "../i18n";
 
 export interface TenderLine {
@@ -166,14 +166,14 @@ export function PaymentModal({
                   <Table.Td>{l.amount.toFixed(2)}</Table.Td>
                   <Table.Td>{l.tendered ? l.tendered.toFixed(2) : "—"}</Table.Td>
                   <Table.Td>
-                    <ActionIcon
+                    <IconButton
+                      label={t.payment.removeTender}
                       color="red"
                       variant="subtle"
                       onClick={() => removeLine(i)}
-                      aria-label={t.payment.removeTender}
                     >
                       <IconTrash size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 </Table.Tr>
               ))}

@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Badge,
   Button,
   Card,
@@ -21,6 +20,9 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Paginated, Role, User } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
+import { DeleteButton } from "../components/DeleteButton";
+import { IconButton } from "../components/IconButton";
 import { ltr, useI18n } from "../i18n";
 
 interface FormState {
@@ -43,6 +45,7 @@ const empty: FormState = {
 export function Users() {
   const qc = useQueryClient();
   const { t } = useI18n();
+  const { user: me } = useAuth();
   const [opened, { open, close }] = useDisclosure(false);
   const [form, setForm] = useState<FormState>(empty);
 
@@ -114,22 +117,35 @@ export function Users() {
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <ActionIcon
-                    variant="subtle"
-                    onClick={() => {
-                      setForm({
-                        id: u.id,
-                        username: u.username,
-                        role: u.role,
-                        phone_number: u.phone_number,
-                        password: "",
-                        is_active: u.is_active,
-                      });
-                      open();
-                    }}
-                  >
-                    <IconEdit size={16} />
-                  </ActionIcon>
+                  <Group gap="xs">
+                    <IconButton
+                      label={t.users.edit}
+                      variant="subtle"
+                      onClick={() => {
+                        setForm({
+                          id: u.id,
+                          username: u.username,
+                          role: u.role,
+                          phone_number: u.phone_number,
+                          password: "",
+                          is_active: u.is_active,
+                        });
+                        open();
+                      }}
+                    >
+                      <IconEdit size={16} />
+                    </IconButton>
+                    {/* Not your own account: the server refuses that anyway. */}
+                    {u.id !== me?.id && (
+                      <DeleteButton
+                        label={t.users.delete}
+                        name={u.username}
+                        url={`/users/${u.id}/`}
+                        queryKey={["users"]}
+                        inUse={t.users.inUse}
+                      />
+                    )}
+                  </Group>
                 </Table.Td>
               </Table.Tr>
             ))}

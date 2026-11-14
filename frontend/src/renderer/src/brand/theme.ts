@@ -43,4 +43,7 @@ export const theme = createTheme({
   colors: { teal, gold, wood, green },
   defaultRadius: "md",
   defaultGradient: { from: "teal.5", to: "gold.4", deg: 90 },
+  // The hand cursor on switches, checkboxes and their labels, as on buttons;
+  // Mantine's default leaves them with the arrow.
+  cursorType: "pointer",
 });

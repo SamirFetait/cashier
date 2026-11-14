@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Badge,
   Button,
   Card,
@@ -7,7 +6,6 @@ import {
   Group,
   Modal,
   NumberInput,
-  Select,
   Stack,
   Switch,
   Table,
@@ -17,13 +15,17 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconEdit, IconPackageImport, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
+import { IconCategory, IconEdit, IconPackageImport, IconPlus, IconUpload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../api/client";
-import type { Category, Paginated, Product, Storage } from "../api/types";
+import type { Paginated, Product, Storage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { CategoryManager } from "../components/CategoryManager";
+import { CategorySelect } from "../components/CategorySelect";
+import { DeleteButton } from "../components/DeleteButton";
+import { IconButton } from "../components/IconButton";
 import { ProductThumb, productThumbUrl } from "../components/ProductThumb";
 import { useI18n } from "../i18n";
 
@@ -78,6 +80,7 @@ export function Products() {
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [restockOpen, restock] = useDisclosure(false);
+  const [categoriesOpen, categoryManager] = useDisclosure(false);
   const [form, setForm] = useState<FormState>(empty);
   const [photo, setPhoto] = useState<PhotoState>(noPhoto);
   const resetFilePicker = useRef<() => void>(null);
@@ -97,11 +100,6 @@ export function Products() {
     queryKey: ["products"],
     queryFn: async () =>
       (await api.get<Paginated<Product>>("/products/?page_size=500")).data.results,
-  });
-  const categories = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () =>
-      (await api.get<Paginated<Category>>("/categories/?page_size=500")).data.results,
   });
   const storages = useQuery({
     queryKey: ["storages"],
@@ -162,15 +160,14 @@ export function Products() {
     },
   });
 
-  const remove = useMutation({
-    mutationFn: async (id: number) => api.delete(`/products/${id}/`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      notifications.show({ message: t.products.deleted, color: "green" });
-    },
-    onError: () =>
-      notifications.show({ message: t.products.deleteFailed, color: "red" }),
-  });
+  // For the category manager: which categories products still use.
+  const productCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const p of products.data ?? []) {
+      if (p.category) counts.set(p.category, (counts.get(p.category) ?? 0) + 1);
+    }
+    return counts;
+  }, [products.data]);
 
   const doRestock = useMutation({
     mutationFn: async () => {
@@ -232,11 +229,23 @@ export function Products() {
       <Group justify="space-between">
         <Title order={2}>{t.nav.products}</Title>
         {isSuperadmin && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            {t.products.add}
-          </Button>
+          <Group gap="sm">
+            <Button variant="default" leftSection={<IconCategory size={16} />} onClick={categoryManager.open}>
+              {t.products.categories}
+            </Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              {t.products.add}
+            </Button>
+          </Group>
         )}
       </Group>
+      {isSuperadmin && (
+        <CategoryManager
+          opened={categoriesOpen}
+          onClose={categoryManager.close}
+          productCounts={productCounts}
+        />
+      )}
 
       <Card withBorder radius="md">
         <Table striped highlightOnHover>
@@ -269,10 +278,11 @@ export function Products() {
                 {isSuperadmin && (
                   <Table.Td>
                     <Group gap="xs">
-                      <ActionIcon variant="subtle" onClick={() => openEdit(p)}>
+                      <IconButton label={t.products.edit} variant="subtle" onClick={() => openEdit(p)}>
                         <IconEdit size={16} />
-                      </ActionIcon>
-                      <ActionIcon
+                      </IconButton>
+                      <IconButton
+                        label={t.products.addStock}
                         variant="subtle"
                         color="teal"
                         onClick={() => {
@@ -282,14 +292,14 @@ export function Products() {
                         }}
                       >
                         <IconPackageImport size={16} />
-                      </ActionIcon>
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        onClick={() => remove.mutate(p.id)}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
+                      </IconButton>
+                      <DeleteButton
+                        label={t.products.delete}
+                        name={p.name}
+                        url={`/products/${p.id}/`}
+                        queryKey={["products"]}
+                        inUse={t.products.inUse}
+                      />
                     </Group>
                   </Table.Td>
                 )}
@@ -341,15 +351,11 @@ export function Products() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
           />
-          <Select
-            label={t.products.category}
-            clearable
-            data={(categories.data ?? []).map((c) => ({
-              value: String(c.id),
-              label: c.name,
-            }))}
+          <CategorySelect
             value={form.category}
-            onChange={(v) => setForm({ ...form, category: v })}
+            // Functional: a new category is selected once the server has added it,
+            // and the form may have been edited in the meantime.
+            onChange={(category) => setForm((current) => ({ ...current, category }))}
           />
           <Group grow>
             <NumberInput

@@ -1,0 +1,20 @@
+/*
+ * Notifications open below the window's title bar (main.tsx passes the
+ * offset). Only the top containers move: Mantine applies the `style` prop to
+ * all six of its position containers, and a `top` on a bottom one, which is
+ * already pinned by `bottom`, stretches that empty box over the whole window,
+ * where it swallows every click.
+ */
+.mantine-Notifications-root[data-position^="top"] {
+  top: calc(var(--mantine-spacing-md) + var(--title-bar-offset, 0px));
+}
+
+/*
+ * The hand cursor over anything clickable. Mantine's buttons, menu items, tabs
+ * and select options ask for it already, and theme.cursorType adds switches
+ * and checkboxes; this catches plain buttons. :where() keeps it at zero
+ * specificity, so a component's own cursor (not-allowed when disabled) wins.
+ */
+:where(button:enabled, [role="button"]:not([aria-disabled="true"])) {
+  cursor: pointer;
+}

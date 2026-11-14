@@ -87,7 +87,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       >
         <Group h={HEADER_HEIGHT} px="md" justify="space-between">
           <Group>
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t.nav.menu} />
             <BrandLockup />
             {branch.data && (
               <Badge variant="light" color="teal" leftSection={<IconBuildingStore size={12} />}>

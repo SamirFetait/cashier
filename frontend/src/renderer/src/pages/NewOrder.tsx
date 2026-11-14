@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -30,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { Customer, Order, Paginated, Product, Shift } from "../api/types";
+import { IconButton } from "../components/IconButton";
 import { ProductThumb, productThumbUrl } from "../components/ProductThumb";
 import { useI18n } from "../i18n";
 import { PaymentModal, TenderLine } from "../pos/PaymentModal";
@@ -518,14 +518,14 @@ export function NewOrder() {
                         </Table.Td>
                         <Table.Td>{lineTotal.toFixed(2)}</Table.Td>
                         <Table.Td>
-                          <ActionIcon
+                          <IconButton
+                            label={t.newOrder.removeLine}
                             color="red"
                             variant="subtle"
                             onClick={() => removeLine(l.product.id)}
-                            aria-label={t.newOrder.removeLine}
                           >
                             <IconTrash size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         </Table.Td>
                       </Table.Tr>
                     );

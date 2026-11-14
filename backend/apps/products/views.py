@@ -6,6 +6,7 @@ from rest_framework.permissions import SAFE_METHODS, AllowAny
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsSuperAdminOrReadOnly
+from apps.common.deletion import AuditedDestroyMixin
 
 from .images import InvalidImage, process_upload
 from .models import Category, Product, ProductImage
@@ -23,14 +24,14 @@ def products_with_image_version():
     )
 
 
-class CategoryViewSet(viewsets.ModelViewSet):
+class CategoryViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsSuperAdminOrReadOnly]
     search_fields = ["name"]
 
 
-class ProductViewSet(viewsets.ModelViewSet):
+class ProductViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsSuperAdminOrReadOnly]
     search_fields = ["name", "barcode"]

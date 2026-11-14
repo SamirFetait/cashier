@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Button,
   Card,
   Group,
@@ -19,6 +18,9 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Customer, Order, Paginated } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
+import { DeleteButton } from "../components/DeleteButton";
+import { IconButton } from "../components/IconButton";
 import { ltr, useI18n } from "../i18n";
 
 interface FormState {
@@ -34,6 +36,7 @@ const empty: FormState = { name: "", phone_number: "", address: "", notes: "" };
 export function Customers() {
   const qc = useQueryClient();
   const { t, formatDate } = useI18n();
+  const { isSuperadmin } = useAuth();
   const [opened, { open, close }] = useDisclosure(false);
   const [historyOpen, history] = useDisclosure(false);
   const [form, setForm] = useState<FormState>(empty);
@@ -109,7 +112,8 @@ export function Customers() {
                 <Table.Td>{Number(c.total_spent).toFixed(2)}</Table.Td>
                 <Table.Td>
                   <Group gap="xs">
-                    <ActionIcon
+                    <IconButton
+                      label={t.customers.edit}
                       variant="subtle"
                       onClick={() => {
                         setForm({
@@ -123,8 +127,9 @@ export function Customers() {
                       }}
                     >
                       <IconEdit size={16} />
-                    </ActionIcon>
-                    <ActionIcon
+                    </IconButton>
+                    <IconButton
+                      label={t.customers.history(c.name)}
                       variant="subtle"
                       color="wood"
                       onClick={() => {
@@ -133,7 +138,15 @@ export function Customers() {
                       }}
                     >
                       <IconHistory size={16} />
-                    </ActionIcon>
+                    </IconButton>
+                    {isSuperadmin && (
+                      <DeleteButton
+                        label={t.customers.delete}
+                        name={c.name}
+                        url={`/customers/${c.id}/`}
+                        queryKey={["customers"]}
+                      />
+                    )}
                   </Group>
                 </Table.Td>
               </Table.Tr>

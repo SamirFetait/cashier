@@ -5,11 +5,15 @@ export type Lang = "en" | "ar";
 
 export const LANG_STORAGE_KEY = "cashier.lang";
 
+/** What a terminal shows until someone switches the language on it. */
+export const DEFAULT_LANG: Lang = "ar";
+
 export function storedLang(): Lang {
   try {
-    return localStorage.getItem(LANG_STORAGE_KEY) === "ar" ? "ar" : "en";
+    const saved = localStorage.getItem(LANG_STORAGE_KEY);
+    return saved === "en" || saved === "ar" ? saved : DEFAULT_LANG;
   } catch {
-    return "en";
+    return DEFAULT_LANG;
   }
 }
 

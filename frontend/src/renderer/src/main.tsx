@@ -1,9 +1,12 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import {
   ColorSchemeScript,
   DirectionProvider,
   MantineProvider,
+  Modal,
+  Notification,
+  mergeThemeOverrides,
   useDirection,
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
@@ -13,6 +16,7 @@ import { HashRouter } from "react-router-dom";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "./i18n/arabic.css";
+import "./global.css";
 
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
@@ -35,15 +39,27 @@ function DirectionSync({ dir }: { dir: "ltr" | "rtl" }) {
 }
 
 function Root() {
-  const { dir } = useI18n();
+  const { dir, t } = useI18n();
+  // Mantine's own ✕ buttons, on dialogs and notifications, are only an icon:
+  // they get a name and hover text in the interface language.
+  const localizedTheme = useMemo(() => {
+    const closeButtonProps = { "aria-label": t.common.close, title: t.common.close };
+    return mergeThemeOverrides(theme, {
+      components: {
+        Modal: Modal.extend({ defaultProps: { closeButtonProps } }),
+        Notification: Notification.extend({ defaultProps: { closeButtonProps } }),
+      },
+    });
+  }, [t]);
   return (
     <DirectionProvider initialDirection={dir} detectDirection={false}>
-      <MantineProvider theme={theme} defaultColorScheme="light">
+      <MantineProvider theme={localizedTheme} defaultColorScheme="light">
         <DirectionSync dir={dir} />
         <Notifications
           position={dir === "rtl" ? "top-left" : "top-right"}
-          // Below the window's title bar, clear of the Windows buttons.
-          style={{ top: `calc(var(--mantine-spacing-md) + ${titleBarOffset}px)` }}
+          // Below the window's title bar, clear of the Windows buttons. Only a
+          // variable here: global.css explains why `top` itself must not be set.
+          style={{ "--title-bar-offset": `${titleBarOffset}px` }}
         />
         <QueryClientProvider client={queryClient}>
           <HashRouter>
