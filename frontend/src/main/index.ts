@@ -8,6 +8,8 @@ import {
   type PrinterConfig,
   type ReceiptLine,
 } from "./escpos";
+import { randomUUID } from "crypto";
+import { tmpdir } from "os";
 import { join } from "path";
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 
@@ -174,6 +176,58 @@ ipcMain.handle("receipt:print", async (_e, html: string) => {
       }
     );
   });
+});
+
+// --- Barcode labels: drawn as a page and printed through the label printer's own driver ---
+// The driver turns everything into graphics, so Arabic prints although the
+// printer's built-in fonts are Latin only.
+ipcMain.handle("labels:printers", async (event) => {
+  const printers = await event.sender.getPrintersAsync();
+  return printers.map((p) => ({
+    name: p.name,
+    displayName: p.displayName || p.name,
+    isDefault: p.isDefault,
+  }));
+});
+
+interface LabelJob {
+  html: string;
+  /** Print straight to this printer; null shows the print dialog. */
+  printer: string | null;
+  widthMm: number;
+  heightMm: number;
+}
+
+ipcMain.handle("labels:print", async (_e, job: LabelJob) => {
+  // A file, not a data: URL: a long run of labels outgrows the URL length limit.
+  const file = join(tmpdir(), `cashier-labels-${randomUUID()}.html`);
+  writeFileSync(file, job.html, "utf-8");
+  const printWin = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+  try {
+    await printWin.loadFile(file);
+    return await new Promise<{ success: boolean; error?: string }>((resolve) => {
+      printWin.webContents.print(
+        {
+          silent: Boolean(job.printer),
+          deviceName: job.printer ?? undefined,
+          printBackground: true,
+          margins: { marginType: "none" },
+          // Microns. One page per label.
+          pageSize: { width: Math.round(job.widthMm * 1000), height: Math.round(job.heightMm * 1000) },
+        },
+        (success, failureReason) => resolve(success ? { success } : { success, error: failureReason })
+      );
+    });
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  } finally {
+    printWin.destroy();
+    try {
+      unlinkSync(file);
+    } catch {
+      /* the system cleans its temp folder */
+    }
+  }
 });
 
 // One instance only: launching again (say, while the update splash is up)

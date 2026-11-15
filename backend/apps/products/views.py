@@ -1,4 +1,5 @@
-from django.db.models import F
+from django.db import transaction
+from django.db.models import F, Q
 from django.http import Http404, HttpResponse, HttpResponseNotModified
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -8,6 +9,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsSuperAdminOrReadOnly
 from apps.common.deletion import AuditedDestroyMixin
 
+from .barcodes import next_store_barcode
 from .images import InvalidImage, process_upload
 from .models import Category, Product, ProductImage
 from .serializers import CategorySerializer, ProductSerializer
@@ -65,6 +67,32 @@ class ProductViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
         if not product:
             return Response({"detail": f"No active product with barcode {barcode}."}, status=404)
         return Response(self.get_serializer(product).data)
+
+    @action(detail=False, methods=["post"], url_path="generate-barcodes")
+    def generate_barcodes(self, request):
+        """Give products that have no barcode an in-store one.
+
+        Takes ``ids`` to pick the products; without it, every active product
+        that lacks a code gets one. Products that already have a code are
+        never changed, since labels with that code may already be printed.
+        """
+        ids = request.data.get("ids")
+        missing = Product.objects.filter(Q(barcode__isnull=True) | Q(barcode=""))
+        if ids is None:
+            missing = missing.filter(is_active=True)
+        elif isinstance(ids, list) and all(type(i) is int for i in ids):
+            missing = missing.filter(pk__in=ids)
+        else:
+            return Response({"ids": ["Send a list of product ids."]}, status=400)
+
+        updated = []
+        with transaction.atomic():
+            for product in missing.select_for_update().order_by("pk"):
+                product.barcode = next_store_barcode()
+                product.save(update_fields=["barcode"])
+                updated.append(product.pk)
+        products = self.get_queryset().filter(pk__in=updated)
+        return Response({"updated": len(updated), "products": self.get_serializer(products, many=True).data})
 
     @action(detail=True, methods=["get", "post", "delete"])
     def image(self, request, pk=None):

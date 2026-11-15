@@ -182,6 +182,20 @@ class ReceiptNumberTests(BaseSetup):
         )
         self.assertEqual(resp.data["receipt_number"], "R000002")
 
+    def test_till_previews_next_number_without_claiming_it(self):
+        self.auth(self.cashier)
+        url = "/api/orders/next-number/"
+        self.assertEqual(self.client.get(url).data, {"receipt_number": "R000001"})
+        # Looking again changes nothing: only a sale takes the number.
+        self.assertEqual(self.client.get(url).data["receipt_number"], "R000001")
+        sale = self.client.post(
+            "/api/orders/",
+            {"items": [{"product": self.product.id, "quantity": 1}]},
+            format="json",
+        )
+        self.assertEqual(sale.data["receipt_number"], "R000001")
+        self.assertEqual(self.client.get(url).data["receipt_number"], "R000002")
+
 
 class CostSnapshotTests(BaseSetup):
     def test_unit_cost_is_snapshotted_at_sale_time(self):

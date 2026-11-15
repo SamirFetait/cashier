@@ -93,6 +93,39 @@ export const platform = {
     return window.api!.printer.set(config);
   },
 
+  /** Printers installed in Windows; empty outside the desktop app. */
+  async listPrinters(): Promise<{ name: string; displayName: string; isDefault: boolean }[]> {
+    if (!hasElectron || !window.api!.labels) return [];
+    try {
+      return await window.api!.labels.printers();
+    } catch {
+      return [];
+    }
+  },
+
+  /** Barcode labels, straight to `printer` or through the print dialog when it is null. */
+  async printLabels(job: {
+    html: string;
+    printer: string | null;
+    widthMm: number;
+    heightMm: number;
+  }): Promise<{ success: boolean; error?: string }> {
+    if (hasElectron && window.api!.labels) {
+      try {
+        return await window.api!.labels.print(job);
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+    }
+    const w = window.open("", "_blank", "width=480,height=600");
+    if (!w) return { success: false, error: "The print window was blocked." };
+    w.document.write(job.html);
+    w.document.close();
+    w.focus();
+    w.print();
+    return { success: true };
+  },
+
   async printReceipt(html: string): Promise<void> {
     if (hasElectron) {
       await window.api!.printReceipt(html);

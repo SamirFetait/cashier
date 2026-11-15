@@ -1,7 +1,9 @@
 import { AppShell, Burger, Divider, Group, NavLink, ScrollArea, Text, Badge, Button } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
+  IconBarcode,
   IconLayoutDashboard,
+  IconScan,
   IconShoppingCart,
   IconBox,
   IconUsers,
@@ -40,15 +42,18 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
+// A cashier sees only what selling needs; the rest is for super admins.
 const NAV: NavItem[] = [
-  { to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} /> },
+  { to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} />, adminOnly: true },
+  { to: "/scan", label: "scan", icon: <IconScan size={18} /> },
   { to: "/new-order", label: "newOrder", icon: <IconShoppingCart size={18} /> },
   { to: "/orders", label: "orders", icon: <IconReceipt size={18} /> },
   { to: "/shift", label: "shift", icon: <IconCashRegister size={18} /> },
-  { to: "/products", label: "products", icon: <IconBox size={18} /> },
-  { to: "/customers", label: "customers", icon: <IconUsers size={18} /> },
-  { to: "/suppliers", label: "suppliers", icon: <IconTruck size={18} /> },
-  { to: "/printer", label: "printer", icon: <IconPrinter size={18} /> },
+  { to: "/products", label: "products", icon: <IconBox size={18} />, adminOnly: true },
+  { to: "/labels", label: "labels", icon: <IconBarcode size={18} />, adminOnly: true },
+  { to: "/customers", label: "customers", icon: <IconUsers size={18} />, adminOnly: true },
+  { to: "/suppliers", label: "suppliers", icon: <IconTruck size={18} />, adminOnly: true },
+  { to: "/printer", label: "printer", icon: <IconPrinter size={18} />, adminOnly: true },
   { to: "/reports", label: "reports", icon: <IconChartBar size={18} />, adminOnly: true },
   { to: "/hq-reports", label: "hqReports", icon: <IconReportAnalytics size={18} />, adminOnly: true },
   { to: "/users", label: "users", icon: <IconUserShield size={18} />, adminOnly: true },

@@ -5,6 +5,10 @@ from django.db import models
 
 from apps.common.fields import money_field, quantity_field
 
+# The Sequence that numbers receipts. Checkout claims from it; the till previews it.
+RECEIPT_SEQUENCE = "receipt"
+RECEIPT_PREFIX = "R"
+
 
 class Order(models.Model):
     class Status(models.TextChoices):

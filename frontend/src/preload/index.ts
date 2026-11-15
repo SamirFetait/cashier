@@ -20,6 +20,17 @@ const api = {
     kick: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke("printer:kick"),
   },
+  labels: {
+    /** Printers installed in Windows, for picking the label printer. */
+    printers: (): Promise<{ name: string; displayName: string; isDefault: boolean }[]> =>
+      ipcRenderer.invoke("labels:printers"),
+    print: (job: {
+      html: string;
+      printer: string | null;
+      widthMm: number;
+      heightMm: number;
+    }): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke("labels:print", job),
+  },
   app: {
     /** The running build's version, e.g. "1.0.3". */
     version: (): Promise<string> => ipcRenderer.invoke("app:version"),

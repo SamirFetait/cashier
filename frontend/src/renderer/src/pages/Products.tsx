@@ -2,6 +2,7 @@ import {
   Badge,
   Button,
   Card,
+  CloseButton,
   FileButton,
   Group,
   Modal,
@@ -37,6 +38,8 @@ interface FormState {
   cost: number;
   unit: string;
   barcode: string;
+  /** Have the server assign an in-store barcode on save. */
+  generateBarcode: boolean;
   is_active: boolean;
 }
 
@@ -47,6 +50,7 @@ const empty: FormState = {
   cost: 0,
   unit: "pcs",
   barcode: "",
+  generateBarcode: false,
   is_active: true,
 };
 
@@ -116,7 +120,8 @@ export function Products() {
         price: f.price,
         cost: f.cost,
         unit: f.unit,
-        barcode: f.barcode || null,
+        barcode: f.generateBarcode ? null : f.barcode.trim() || null,
+        generate_barcode: f.generateBarcode,
         is_active: f.is_active,
       };
       const product = (
@@ -204,6 +209,7 @@ export function Products() {
       cost: Number(p.cost),
       unit: p.unit,
       barcode: p.barcode ?? "",
+      generateBarcode: false,
       is_active: p.is_active,
     });
     setPhoto({ file: null, preview: productThumbUrl(p.image_url), remove: false });
@@ -382,8 +388,31 @@ export function Products() {
             <TextInput
               label={t.products.barcode}
               dir="ltr"
-              value={form.barcode}
+              value={form.generateBarcode ? "" : form.barcode}
+              placeholder={form.generateBarcode ? t.products.barcodeOnSave : undefined}
+              readOnly={form.generateBarcode}
               onChange={(e) => setForm({ ...form, barcode: e.currentTarget.value })}
+              rightSectionWidth={form.generateBarcode ? undefined : 84}
+              rightSectionPointerEvents="all"
+              rightSection={
+                form.generateBarcode ? (
+                  <CloseButton
+                    size="sm"
+                    aria-label={t.products.keepBarcodeEmpty}
+                    onClick={() => setForm({ ...form, generateBarcode: false })}
+                  />
+                ) : (
+                  !form.barcode.trim() && (
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      onClick={() => setForm({ ...form, generateBarcode: true })}
+                    >
+                      {t.products.generateBarcode}
+                    </Button>
+                  )
+                )
+              }
             />
           </Group>
           <Switch

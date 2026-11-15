@@ -32,6 +32,17 @@ class Sequence(models.Model):
         seq.save(update_fields=["last_value"])
         return f"{seq.prefix}{str(seq.last_value).zfill(seq.padding)}"
 
+    @classmethod
+    def peek_next(cls, key: str, *, prefix: str = "", padding: int = 6) -> str:
+        """The number next_value would hand out now, without claiming it.
+
+        A preview only: another terminal may claim it first.
+        """
+        seq = cls.objects.filter(key=key).first()
+        if seq is None:
+            return f"{prefix}{'1'.zfill(padding)}"
+        return f"{seq.prefix}{str(seq.last_value + 1).zfill(seq.padding)}"
+
 
 class AuditLog(models.Model):
     """Append-only record of sensitive actions.

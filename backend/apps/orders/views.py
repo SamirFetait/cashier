@@ -4,10 +4,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.overrides import resolve_override
+from apps.common.models import Sequence
 from apps.shifts.services import active_shift
 
 from . import services
-from .models import Order, Return
+from .models import RECEIPT_PREFIX, RECEIPT_SEQUENCE, Order, Return
 from .serializers import (
     OrderCreateSerializer,
     OrderSerializer,
@@ -55,6 +56,15 @@ class OrderViewSet(viewsets.ModelViewSet):
                     status=200,
                 )
         return super().create(request, *args, **kwargs)
+
+    @action(detail=False, methods=["get"], url_path="next-number")
+    def next_number(self, request):
+        """The receipt number the next sale should get, for the till to show
+        while it rings up. Nothing is claimed: the number is taken at checkout,
+        and with several tills open another one may take it first."""
+        return Response(
+            {"receipt_number": Sequence.peek_next(RECEIPT_SEQUENCE, prefix=RECEIPT_PREFIX)}
+        )
 
     @action(detail=True, methods=["post"])
     def void(self, request, pk=None):

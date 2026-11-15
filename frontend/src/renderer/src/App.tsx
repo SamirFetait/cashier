@@ -9,6 +9,8 @@ import { useAuth } from "./auth/AuthContext";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { NewOrder } from "./pages/NewOrder";
+import { ScanSale } from "./pages/ScanSale";
+import { Labels } from "./pages/Labels";
 import { Orders } from "./pages/Orders";
 import { ShiftPage } from "./pages/ShiftPage";
 import { PrinterSettings } from "./pages/PrinterSettings";
@@ -46,14 +48,17 @@ function Screens(): ReactNode {
   return (
     <AppLayout>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
+        {/* A cashier starts on the till; the dashboard is for super admins. */}
+        <Route path="/" element={isSuperadmin ? <Dashboard /> : <Navigate to="/scan" replace />} />
+        <Route path="/scan" element={<ScanSale />} />
         <Route path="/new-order" element={<NewOrder />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/shift" element={<ShiftPage />} />
-        <Route path="/printer" element={<PrinterSettings />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/customers" element={<Customers />} />
-        <Route path="/suppliers" element={<Suppliers />} />
+        {isSuperadmin && <Route path="/printer" element={<PrinterSettings />} />}
+        {isSuperadmin && <Route path="/products" element={<Products />} />}
+        {isSuperadmin && <Route path="/labels" element={<Labels />} />}
+        {isSuperadmin && <Route path="/customers" element={<Customers />} />}
+        {isSuperadmin && <Route path="/suppliers" element={<Suppliers />} />}
         {isSuperadmin && <Route path="/reports" element={<Reports />} />}
         {isSuperadmin && <Route path="/hq-reports" element={<HqReports />} />}
         {isSuperadmin && <Route path="/users" element={<Users />} />}

@@ -11,7 +11,7 @@ from apps.customers.models import Customer
 from apps.inventory.models import StockItem, Storage, apply_stock_change
 from apps.products.models import Product
 
-from .models import OrderItem, Payment, Return, ReturnItem
+from .models import RECEIPT_PREFIX, RECEIPT_SEQUENCE, OrderItem, Payment, Return, ReturnItem
 
 ZERO = Decimal("0")
 MONEY = Decimal("0.01")
@@ -284,7 +284,7 @@ class OrderCreateSerializer(serializers.Serializer):
         shift = self._resolve_shift(validated_data, payments)
 
         order = Order.objects.create(
-            receipt_number=Sequence.next_value("receipt", prefix="R"),
+            receipt_number=Sequence.next_value(RECEIPT_SEQUENCE, prefix=RECEIPT_PREFIX),
             client_uuid=validated_data.get("client_uuid"),
             was_offline=validated_data.get("was_offline", False),
             customer=validated_data.get("customer"),
