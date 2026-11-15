@@ -108,6 +108,7 @@ Cashier/
   whatsapp-service/   Node + Express + whatsapp-web.js sidecar
   frontend/           Electron + Vite + React + TypeScript desktop app
   hq/                 Central HQ Django project (branches + ingest + dashboard)
+  scripts/start.js    Local dev launcher behind `npm start` (backend, then frontend)
   docker-compose.yml  Branch stack (db + backend + scheduler + whatsapp-service)
   hq/docker-compose.yml  HQ stack (hq-db + hq)
 ```
@@ -176,6 +177,13 @@ npm run dev
 
 > The renderer also runs in a plain browser (http://localhost:5173) for quick UI work; token
 > storage and receipt printing fall back to browser equivalents when not inside Electron.
+
+### Running both with one command
+
+After steps 1 and 3, `npm start` from the repo root does both: it starts the Django dev server
+with `backend/venv`, waits for it on port 8000, then runs `npm run dev` in `frontend/`. Closing
+the app window (or pressing Ctrl+C) stops both. The WhatsApp sidecar isn't included; start it
+separately if you need it.
 
 ### 4) HQ central service (optional — only if you want cross-branch reporting)
 
