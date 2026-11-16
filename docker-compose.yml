@@ -36,6 +36,13 @@ services:
       HQ_API_URL: ${HQ_API_URL:-}
       HQ_API_KEY: ${HQ_API_KEY:-}
       REPORT_TIME: ${REPORT_TIME:-22:00}
+      # The website (storefront + orders admin on cPanel). See README.
+      SHOP_SITE_URL: ${SHOP_SITE_URL:-https://fatheetkheer.com}
+      SHOP_ORDERS_URL: ${SHOP_ORDERS_URL:-https://orders.fatheetkheer.com}
+      SHOP_NUM_PROXIES: ${SHOP_NUM_PROXIES:-0}
+      MEDIA_ROOT: /app/media
+    volumes:
+      - media:/app/media
     ports:
       - "8000:8000"
 
@@ -70,3 +77,4 @@ services:
 volumes:
   pgdata:
   wa_session:
+  media:

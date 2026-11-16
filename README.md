@@ -54,8 +54,8 @@ The desktop app is branded for **Fathet Kheer (فاتحة خير)**. See [Brandi
 - **Stock takes** — snapshot expected levels at the start of a count so sales during the count
   do not distort the variance; applying writes explicit corrections through the ledger.
 - **Product photos** — super admins add one per product in the product form. Stored in the
-  database (not on disk), so a website reading the same database has them too — see
-  [Website on the same database](#website-on-the-same-database).
+  database (not on disk), and the website shows the same photos — see
+  [Website](#website-appswebshop).
 
 ### Reporting
 - **Margin report** — revenue vs cost of goods, using the cost snapshotted at sale time, so
@@ -104,7 +104,7 @@ The desktop app is branded for **Fathet Kheer (فاتحة خير)**. See [Brandi
 Cashier/
   backend/            Branch Django project (apps: common, accounts, products, inventory,
                       customers, suppliers, orders, shifts, purchasing, whatsapp,
-                      reports, hqsync)
+                      reports, hqsync, webshop)
   whatsapp-service/   Node + Express + whatsapp-web.js sidecar
   frontend/           Electron + Vite + React + TypeScript desktop app
   hq/                 Central HQ Django project (branches + ingest + dashboard)
@@ -322,7 +322,7 @@ HQ ingest (called by branches): `POST /api/ingest/daily-report/` (auth: `X-Branc
 ## Tests
 
 ```bash
-cd backend && python manage.py test --parallel 4   # 97 tests, ~55s
+cd backend && python manage.py test --parallel 4   # 226 tests, ~70s
 cd hq && python manage.py test                     # HQ: ingest auth, upsert, dashboard access
 cd frontend && npx tsc --noEmit -p tsconfig.web.json   # renderer
 cd frontend && npx tsc --noEmit -p tsconfig.node.json  # main + preload
@@ -394,36 +394,32 @@ receipt numbers and barcodes read the same in both languages.
   stay English, because the printer's built-in font has no Arabic.
 - Error messages that come from the server (e.g. a stock refusal) stay in English.
 
-## Website on the same database
+## Website (apps.webshop)
 
-A website can read the branch database directly. Stock is live: a sale at the till updates it
-in the same transaction, so an item that sells out in the store is out of stock on the site at
-once. (A sale rung up while a till was offline counts once that till reconnects.)
+The online shop, fatheetkheer.com, and its orders admin, orders.fatheetkheer.com, are two
+static sites in the separate **fatheet-kheer** repository, uploaded to cPanel. This server is
+their only backend: the `apps.webshop` module serves their API under `/api/shop/`, so the
+website sells from the same products, stock and photos as the tills.
 
-```sql
--- Catalogue: active products, stock summed over storage locations, photo version.
-SELECT p.id, p.name, p.price, p.unit, c.name AS category,
-       COALESCE(s.quantity, 0)     AS quantity,
-       COALESCE(s.quantity, 0) > 0 AS in_stock,
-       i.checksum                  AS photo_version      -- NULL: no photo
-FROM products_product p
-LEFT JOIN products_category c ON c.id = p.category_id
-LEFT JOIN (SELECT product_id, SUM(quantity) AS quantity
-           FROM inventory_stockitem GROUP BY product_id) s ON s.product_id = p.id
-LEFT JOIN products_productimage i ON i.product_id = p.id
-WHERE p.is_active;
+- **Web orders wait for an InstaPay deposit.** An order is priced here and reserves its items
+  (counted against stock for other customers, not taken from it). The customer pays a deposit
+  by InstaPay and reports the reference; unpaid orders expire and release their items.
+- **Staff work them from the orders admin** with their cashier login (same roles: cashiers
+  work orders; settings, catalogue, videos and refunds need a super admin).
+- **Hand-over rings up a normal sale** through `OrderCreateSerializer`: stock leaves through
+  the ledger, a receipt number is issued, the deposit is a MOBILE tender, the balance is cash,
+  card or wallet (cash lands in the open shift's drawer), and discounts need the manager PIN
+  as at the till. The web order's id is the sale's `client_uuid`, so it can never be sold twice.
+- Web sales appear in Orders, reports and the HQ daily report like any other sale, with the
+  note "Web order FK-...".
 
--- One photo: JPEG bytes. data is at most 1200 px, thumbnail at most 320 px.
-SELECT data, thumbnail, content_type, checksum
-FROM products_productimage WHERE product_id = $1;
-```
+Configure it in `backend/.env` (see `.env.example`): `SHOP_SITE_URL`, `SHOP_ORDERS_URL` (both
+are allowed through CORS automatically), and optionally `SHOP_STORAGE_ID`, `SHOP_TERMINAL`,
+`SHOP_VIDEO_MAX_MB`. Uploaded videos are stored under `MEDIA_ROOT` and streamed from `/media/`.
 
-- Serve photos from the website's own route using these bytes, with `checksum` as the ETag or a
-  URL version. Alternatively link to the POS server's `/api/products/{id}/image/` — but only if
-  that server is reachable from the internet.
-- **Read only.** If the website takes orders, create them through the POS API
-  (`POST /api/orders/`). Writing `inventory_stockitem` directly would skip the stock ledger,
-  receipt numbering and audit trail, and the till and website would drift apart.
+**The server must be reachable from the internet** for the website to work, e.g. as
+`api.fatheetkheer.com` through a Cloudflare Tunnel (add that name to `ALLOWED_HOSTS` and set
+`SHOP_NUM_PROXIES=1`). The fatheet-kheer README has the deployment steps.
 
 ## Not yet implemented
 

@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.whatsapp",
     "apps.reports",
     "apps.hqsync",
+    "apps.webshop",
 ]
 
 MIDDLEWARE = [
@@ -128,8 +129,30 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": False,
 }
 
+# --- Website (apps.webshop) ---
+# The storefront (fatheetkheer.com) and the orders admin
+# (orders.fatheetkheer.com) are static sites that call this server's API.
+SHOP_SITE_URL = env("SHOP_SITE_URL", default="http://localhost:5180").rstrip("/")
+SHOP_ORDERS_URL = env("SHOP_ORDERS_URL", default="http://localhost:5181").rstrip("/")
+# Stock location web orders are sold from. Blank: the default storage.
+SHOP_STORAGE_ID = env.int("SHOP_STORAGE_ID", default=0) or None
+# Till whose open shift takes cash from web orders. Blank: any open shift.
+SHOP_TERMINAL = env("SHOP_TERMINAL", default="")
+# The shop's own clock, for "today" on the orders board (the server runs on UTC).
+SHOP_TIME_ZONE = env("SHOP_TIME_ZONE", default="Africa/Cairo")
+# Largest video an admin may upload, in MB.
+SHOP_VIDEO_MAX_MB = env.int("SHOP_VIDEO_MAX_MB", default=80)
+# Proxies or tunnels in front of this server (Cloudflare Tunnel = 1). Decides
+# which address the website's rate limits trust.
+SHOP_NUM_PROXIES = env.int("SHOP_NUM_PROXIES", default=0)
+
+# Uploaded website videos and their posters.
+MEDIA_URL = "/media/"
+MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "media")))
+
 # --- CORS ---
-CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
+# The two websites are always allowed, on top of the till origins.
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(env("CORS_ALLOWED_ORIGINS") + [SHOP_SITE_URL, SHOP_ORDERS_URL]))
 CORS_ALLOW_CREDENTIALS = True
 
 # --- WhatsApp sidecar ---

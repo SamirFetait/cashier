@@ -17,6 +17,7 @@ from apps.reports.views import (
     StockCsvView, AuditLogView,
 )
 from apps.hqsync.views import BranchView, DailyReportViewSet, SendDailyReportNowView
+from apps.webshop.media import serve_media
 
 router = DefaultRouter()
 router.register("users", UserViewSet, basename="user")
@@ -54,10 +55,13 @@ api_patterns = [
     path("audit-log/", AuditLogView.as_view(), name="audit-log"),
     path("branch/", BranchView.as_view(), name="branch"),
     path("daily-reports/send-now/", SendDailyReportNowView.as_view(), name="daily-report-send-now"),
+    path("shop/", include("apps.webshop.urls")),
     path("", include(router.urls)),
 ]
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(api_patterns)),
+    # Website videos (apps.webshop), streamed with byte ranges.
+    path("media/<path:path>", serve_media),
 ]
