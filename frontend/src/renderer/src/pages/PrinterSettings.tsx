@@ -14,17 +14,11 @@ import { notifications } from "@mantine/notifications";
 import { IconPrinter } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
-import { ltr, useI18n } from "../i18n";
+import type { Order } from "../api/types";
+import { ltr, useI18n, type Messages } from "../i18n";
 import { platform } from "../platform";
 import type { ReceiptLine } from "../receipt/escposReceipt";
-
-interface PrinterConfig {
-  transport: "network" | "device" | "none";
-  host?: string;
-  port?: number;
-  path?: string;
-  width?: number;
-}
+import { openDrawer, printLines, printOrderReceipt, type PrinterConfig } from "../receipt/receipt";
 
 // Printed in the printer's own Latin font, so it stays English.
 const TEST_PAGE: ReceiptLine[] = [
@@ -40,13 +34,51 @@ const TEST_PAGE: ReceiptLine[] = [
   { left: "setting is correct.", align: "center" },
 ];
 
+/** A made-up sale, so a Windows printer's test shows a real receipt:
+ * the logo, Arabic, a discount and the change. */
+function sampleOrder(t: Messages): Order {
+  const now = new Date().toISOString();
+  return {
+    id: 0,
+    receipt_number: "TEST",
+    customer: null,
+    customer_name: null,
+    storage: 0,
+    created_by: null,
+    created_by_username: null,
+    shift: null,
+    shift_number: null,
+    status: "COMPLETED",
+    payment_method: "CASH",
+    subtotal: "95.00",
+    discount: "0.00",
+    tax: "0.00",
+    total: "95.00",
+    amount_paid: "95.00",
+    change_given: "5.00",
+    note: "",
+    items: [
+      {
+        id: 1, product: 0, product_name: t.printer.sampleItem, product_unit: "pcs", sold_by: "UNIT",
+        quantity: "2", unit_price: "50.00", discount: "5.00", line_total: "95.00",
+      },
+    ],
+    payments: [
+      { id: 1, method: "CASH", amount: "95.00", tendered: "100.00", change: "5.00", reference: "", created_at: now },
+    ],
+    created_at: now,
+  };
+}
+
 export function PrinterSettings() {
   const { t, lang } = useI18n();
   const [config, setConfig] = useState<PrinterConfig>({ transport: "none" });
   const [busy, setBusy] = useState(false);
+  const [printers, setPrinters] = useState<{ name: string; displayName: string; isDefault: boolean }[]>([]);
 
   useEffect(() => {
     platform.getPrinterConfig().then((c) => setConfig(c as PrinterConfig));
+    void platform.listPrinters().then(setPrinters);
   }, []);
 
   async function save() {
@@ -61,7 +93,9 @@ export function PrinterSettings() {
   async function testPrint() {
     setBusy(true);
     await platform.setPrinterConfig(config);
-    const result = await platform.printEscPos(TEST_PAGE);
+    // Through Windows a test is a real (made-up) receipt: it shows Arabic and the logo print.
+    const result =
+      config.transport === "windows" ? await printOrderReceipt(sampleOrder(t)) : await printLines(TEST_PAGE);
     setBusy(false);
     notifications.show({
       title: result.success ? t.printer.testSent : t.printer.testFailed,
@@ -75,7 +109,7 @@ export function PrinterSettings() {
   async function testDrawer() {
     setBusy(true);
     await platform.setPrinterConfig(config);
-    const result = await platform.openCashDrawer();
+    const result = await openDrawer();
     setBusy(false);
     notifications.show({
       title: result.success ? t.printer.drawerSent : t.printer.drawerFailed,
@@ -103,6 +137,7 @@ export function PrinterSettings() {
             description={t.printer.connectionHint}
             data={[
               { value: "none", label: t.printer.none },
+              { value: "windows", label: t.printer.windows },
               { value: "network", label: t.printer.network },
               { value: "device", label: t.printer.device },
             ]}
@@ -128,6 +163,18 @@ export function PrinterSettings() {
                 onChange={(v) => setConfig((c) => ({ ...c, port: Number(v) || 9100 }))}
               />
             </Group>
+          )}
+
+          {config.transport === "windows" && (
+            <Select
+              label={t.printer.windowsPrinter}
+              description={printers.length > 0 ? t.printer.windowsPrinterHint : t.printer.noPrinters}
+              data={printers.map((p) => ({ value: p.name, label: p.displayName }))}
+              value={config.printer ?? null}
+              onChange={(v) => setConfig((c) => ({ ...c, printer: v ?? undefined }))}
+              searchable
+              error={printers.length === 0 ? t.printer.noPrinters : undefined}
+            />
           )}
 
           {config.transport === "device" && (
@@ -157,9 +204,10 @@ export function PrinterSettings() {
             {t.printer.fallbackNote}
           </Text>
 
-          {lang === "ar" && config.transport !== "none" && (
+          {lang === "ar" && (config.transport === "network" || config.transport === "device") && (
             <Alert color="gold">{t.printer.englishOnly}</Alert>
           )}
+          {config.transport === "windows" && <Alert color="gray">{t.printer.windowsNote}</Alert>}
 
           <Group>
             <Button onClick={save}>{t.common.save}</Button>
@@ -168,7 +216,7 @@ export function PrinterSettings() {
               leftSection={<IconPrinter size={16} />}
               onClick={testPrint}
               loading={busy}
-              disabled={config.transport === "none"}
+              disabled={config.transport === "none" || (config.transport === "windows" && !config.printer)}
             >
               {t.printer.testPrint}
             </Button>

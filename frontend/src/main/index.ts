@@ -134,8 +134,8 @@ ipcMain.handle("printer:set", (_e, config: PrinterConfig) => {
 
 ipcMain.handle("printer:escpos", async (_e, lines: ReceiptLine[]) => {
   const config = loadPrinterConfig();
-  if (config.transport === "none") {
-    return { success: false, error: "No thermal printer configured." };
+  if (config.transport === "none" || config.transport === "windows") {
+    return { success: false, error: "No ESC/POS printer configured." };
   }
   try {
     await sendToPrinter(buildReceipt(lines, config), config);
@@ -147,8 +147,8 @@ ipcMain.handle("printer:escpos", async (_e, lines: ReceiptLine[]) => {
 
 ipcMain.handle("printer:kick", async () => {
   const config = loadPrinterConfig();
-  if (config.transport === "none") {
-    return { success: false, error: "No thermal printer configured." };
+  if (config.transport === "none" || config.transport === "windows") {
+    return { success: false, error: "No ESC/POS printer configured." };
   }
   try {
     await sendToPrinter(buildDrawerKick(), config);
@@ -158,24 +158,38 @@ ipcMain.handle("printer:kick", async () => {
   }
 });
 
-// --- Receipt printing: render HTML in a hidden window and open the print dialog ---
-ipcMain.handle("receipt:print", async (_e, html: string) => {
-  const printWin = new BrowserWindow({
-    show: false,
-    webPreferences: { sandbox: true },
-  });
-  await printWin.loadURL(
-    "data:text/html;charset=utf-8," + encodeURIComponent(html)
-  );
-  return new Promise<{ success: boolean }>((resolve) => {
-    printWin.webContents.print(
-      { silent: false, printBackground: true, margins: { marginType: "none" } },
-      (success) => {
-        printWin.close();
-        resolve({ success });
-      }
-    );
-  });
+// --- Receipt printing: render HTML in a hidden window and print it ---
+// With a printer name it goes straight to that Windows printer, silently;
+// without one the print dialog opens. Never throws: the sale is already done.
+ipcMain.handle("receipt:print", async (_e, html: string, printer?: string | null) => {
+  // A file rather than a data: URL, which has a length limit.
+  const file = join(tmpdir(), `cashier-receipt-${randomUUID()}.html`);
+  const printWin = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+  try {
+    writeFileSync(file, html, "utf-8");
+    await printWin.loadFile(file);
+    return await new Promise<{ success: boolean; error?: string }>((resolve) => {
+      printWin.webContents.print(
+        {
+          silent: Boolean(printer),
+          deviceName: printer || undefined,
+          printBackground: true,
+          margins: { marginType: "none" },
+        },
+        // failureReason is "cancelled" when the dialog was closed.
+        (success, failureReason) => resolve(success ? { success } : { success, error: failureReason })
+      );
+    });
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  } finally {
+    printWin.destroy();
+    try {
+      unlinkSync(file);
+    } catch {
+      /* the system cleans its temp folder */
+    }
+  }
 });
 
 // --- Barcode labels: drawn as a page and printed through the label printer's own driver ---

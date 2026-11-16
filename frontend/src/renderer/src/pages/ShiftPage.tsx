@@ -22,8 +22,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { Shift, ShiftReport } from "../api/types";
 import { label, ltr, useI18n } from "../i18n";
-import { platform } from "../platform";
-import { printShiftReport } from "../receipt/receipt";
+import { openDrawer, printShiftReport } from "../receipt/receipt";
 
 function money(v: string | number | null | undefined) {
   if (v === null || v === undefined) return "—";
@@ -192,7 +191,7 @@ export function ShiftPage() {
           <Button
             variant="default"
             onClick={async () => {
-              const result = await platform.openCashDrawer();
+              const result = await openDrawer();
               if (!result.success) {
                 notifications.show({
                   title: t.shift.drawerFailed,

@@ -13,6 +13,7 @@ import {
   Menu,
   Modal,
   NumberInput,
+  SegmentedControl,
   Select,
   Stack,
   Table,
@@ -27,9 +28,11 @@ import {
   IconBarcode,
   IconChevronDown,
   IconCircleCheck,
+  IconDiscount,
   IconMinus,
   IconPlayerPlay,
   IconPlus,
+  IconPrinter,
   IconScan,
   IconTrash,
 } from "@tabler/icons-react";
@@ -39,13 +42,14 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { Order, Product } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
 import { IconButton } from "../components/IconButton";
 import { ProductThumb, productThumbUrl } from "../components/ProductThumb";
-import { useI18n } from "../i18n";
+import { ltr, useI18n } from "../i18n";
 import { PaymentModal } from "../pos/PaymentModal";
 import { PinPrompt } from "../pos/PinPrompt";
 import { useScanner } from "../pos/useScanner";
-import { lineTotal, useSale } from "../pos/useSale";
+import { lineGross, lineTotal, round2, useSale, type CartLine } from "../pos/useSale";
 
 /** Anything bigger is a barcode that landed in the quantity box, not a quantity. */
 const MAX_QUANTITY = 10000;
@@ -120,7 +124,11 @@ export function ScanSale() {
     refetchInterval: 30_000,
   });
 
-  const anyModal = payOpen || quantityEdit !== null || clearOpen || sale.pin.opened;
+  // The line whose discount is being set, by product id.
+  const [discountId, setDiscountId] = useState<number | null>(null);
+  const discountLine = discountId === null ? undefined : cart.find((l) => l.product.id === discountId);
+
+  const anyModal = payOpen || quantityEdit !== null || clearOpen || sale.pin.opened || discountId !== null;
   const canPay = cart.length > 0 && sale.invalidLines.length === 0;
 
   // Keep the code box focused, so a scan or a typed code always lands there.
@@ -272,8 +280,8 @@ export function ScanSale() {
                     <Table.Th w={170} ta="center">
                       {t.common.qty}
                     </Table.Th>
-                    <Table.Th w={110}>{t.common.total}</Table.Th>
-                    <Table.Th w={52} />
+                    <Table.Th w={120}>{t.common.total}</Table.Th>
+                    <Table.Th w={92} />
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -335,16 +343,38 @@ export function ScanSale() {
                             )}
                           </Group>
                         </Table.Td>
-                        <Table.Td fw={600}>{lineTotal(line).toFixed(2)}</Table.Td>
                         <Table.Td>
-                          <IconButton
-                            label={t.newOrder.removeLine}
-                            color="red"
-                            variant="subtle"
-                            onClick={() => removeLine(line.product.id)}
-                          >
-                            <IconTrash size={16} />
-                          </IconButton>
+                          {line.discount > 0 && (
+                            <Text size="xs" c="dimmed" td="line-through" lh={1.2}>
+                              {lineGross(line).toFixed(2)}
+                            </Text>
+                          )}
+                          <Text fw={600}>{lineTotal(line).toFixed(2)}</Text>
+                          {line.discount > 0 && (
+                            <Text size="xs" c="red" lh={1.2}>
+                              {t.scan.discountShort} {ltr(`-${line.discount.toFixed(2)}`)}
+                            </Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap={4} wrap="nowrap">
+                            <IconButton
+                              label={t.scan.discountItem}
+                              color={line.discount > 0 ? "red" : "gray"}
+                              variant={line.discount > 0 ? "light" : "subtle"}
+                              onClick={() => setDiscountId(line.product.id)}
+                            >
+                              <IconDiscount size={16} />
+                            </IconButton>
+                            <IconButton
+                              label={t.newOrder.removeLine}
+                              color="red"
+                              variant="subtle"
+                              onClick={() => removeLine(line.product.id)}
+                            >
+                              <IconTrash size={16} />
+                            </IconButton>
+                          </Group>
                         </Table.Td>
                       </Table.Tr>
                     );
@@ -379,16 +409,22 @@ export function ScanSale() {
                 {t.scan.itemCount(cart.length)}
               </Text>
               <Divider />
-              {(sale.orderDiscount > 0 || cart.some((l) => l.discount > 0)) && (
+              {(sale.orderDiscount > 0 || sale.itemsDiscount > 0) && (
                 <Group justify="space-between">
-                  <Text c="dimmed">{t.common.subtotal}</Text>
-                  <Text>{subtotal.toFixed(2)}</Text>
+                  <Text c="dimmed">{t.scan.beforeDiscount}</Text>
+                  <Text>{sale.gross.toFixed(2)}</Text>
+                </Group>
+              )}
+              {sale.itemsDiscount > 0 && (
+                <Group justify="space-between">
+                  <Text c="dimmed">{t.scan.itemsDiscount}</Text>
+                  <Text c="red" dir="ltr">-{sale.itemsDiscount.toFixed(2)}</Text>
                 </Group>
               )}
               {sale.orderDiscount > 0 && (
                 <Group justify="space-between">
-                  <Text c="dimmed">{t.common.discount}</Text>
-                  <Text dir="ltr">-{sale.orderDiscount.toFixed(2)}</Text>
+                  <Text c="dimmed">{t.scan.invoiceDiscount}</Text>
+                  <Text c="red" dir="ltr">-{sale.orderDiscount.toFixed(2)}</Text>
                 </Group>
               )}
               <Group justify="space-between" align="baseline">
@@ -487,6 +523,7 @@ export function ScanSale() {
                   </Text>
                 )}
                 {lastSale.offline && <Text size="sm">{t.newOrder.savedOfflineMessage}</Text>}
+                <ReceiptStatus sale={sale} order={lastSale.order} />
                 <Text size="sm" c="dimmed">
                   {t.scan.nextHint}
                 </Text>
@@ -504,6 +541,14 @@ export function ScanSale() {
         onConfirm={(payments) => sale.checkout(payments)}
       />
       <PinPrompt opened={sale.pin.opened} onClose={sale.pin.close} onSubmit={sale.pin.submit} />
+      <DiscountPrompt
+        line={discountLine}
+        onClose={() => setDiscountId(null)}
+        onConfirm={(amount) => {
+          if (discountLine) sale.setLineDiscount(discountLine.product.id, amount);
+          setDiscountId(null);
+        }}
+      />
       <QuantityPrompt
         edit={quantityEdit}
         current={quantityEdit ? cart.find((l) => l.product.id === quantityEdit.product.id)?.quantity ?? 0 : 0}
@@ -660,6 +705,163 @@ function QuantityPrompt({
           <Button disabled={!valid} onClick={submit}>
             {t.scan.confirm}
           </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
+/** Whether the paid invoice's receipt printed, with a button to print it (again). */
+function ReceiptStatus({ sale, order }: { sale: ReturnType<typeof useSale>; order: Order }) {
+  const { t } = useI18n();
+  const receipt = sale.receipt?.order === order ? sale.receipt : null;
+  const status = receipt?.status;
+  const printing = status === "printing";
+  const text =
+    status === "printing"
+      ? t.scan.receiptPrinting
+      : status === "printed"
+        ? t.scan.receiptPrinted
+        : status === "notPrinted"
+          ? t.scan.receiptNotPrinted
+          : "";
+  return (
+    <Group gap="xs" wrap="nowrap">
+      <Text size="sm" c={status === "notPrinted" ? "orange" : "dimmed"} style={{ flex: 1 }}>
+        {text}
+      </Text>
+      <Button
+        size="xs"
+        variant="light"
+        leftSection={<IconPrinter size={14} />}
+        loading={printing}
+        onClick={() => void sale.printReceipt(order, status === "printed")}
+      >
+        {status === "printed" ? t.scan.printCopy : t.scan.printReceipt}
+      </Button>
+    </Group>
+  );
+}
+
+/**
+ * A discount on one item, as an amount or a percentage of the line. The
+ * server decides when it is large enough to need a manager's PIN, and the
+ * till asks for it at payment.
+ */
+function DiscountPrompt({
+  line,
+  onClose,
+  onConfirm,
+}: {
+  line: CartLine | undefined;
+  onClose: () => void;
+  onConfirm: (amount: number) => void;
+}) {
+  const { t } = useI18n();
+  const { isSuperadmin } = useAuth();
+  const [mode, setMode] = useState<"amount" | "percent">("amount");
+  const [value, setValue] = useState<number | "">("");
+  const opened = line !== undefined;
+  const gross = line ? lineGross(line) : 0;
+
+  // Each opening starts from the line's current discount, as an amount.
+  useEffect(() => {
+    if (!line) return;
+    setMode("amount");
+    setValue(line.discount > 0 ? line.discount : "");
+    // Only when the dialog opens for a line, not on every cart change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, line?.product.id]);
+
+  const n = typeof value === "number" ? value : 0;
+  const amount = round2(mode === "percent" ? (gross * n) / 100 : n);
+  const error =
+    value === ""
+      ? null
+      : n < 0 || (mode === "percent" && n > 100) || amount > gross
+        ? t.scan.discountTooLarge
+        : null;
+  const valid = value !== "" && !error;
+
+  function submit() {
+    if (valid) onConfirm(amount);
+  }
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      centered
+      title={line ? t.scan.discountTitle(line.product.name) : ""}
+    >
+      <Stack>
+        <SegmentedControl
+          fullWidth
+          value={mode}
+          onChange={(v) => {
+            setMode(v as "amount" | "percent");
+            setValue("");
+          }}
+          data={[
+            { value: "amount", label: t.scan.discountAmount },
+            { value: "percent", label: t.scan.discountPercent },
+          ]}
+        />
+        <NumberInput
+          data-autofocus
+          size="xl"
+          label={mode === "percent" ? t.scan.discountPercentLabel : t.scan.discountAmountLabel}
+          min={0}
+          max={mode === "percent" ? 100 : gross}
+          decimalScale={2}
+          rightSection={<Text c="dimmed">{mode === "percent" ? "%" : t.labels.currency}</Text>}
+          rightSectionWidth={56}
+          value={value}
+          onChange={(v) => setValue(v === "" ? "" : Number(v))}
+          error={error}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+        />
+        <Stack gap={4}>
+          <Group justify="space-between">
+            <Text c="dimmed">{t.scan.lineBefore}</Text>
+            <Text>{gross.toFixed(2)}</Text>
+          </Group>
+          <Group justify="space-between">
+            <Text c="dimmed">{t.scan.discountShort}</Text>
+            <Text c="red" dir="ltr">
+              -{(valid ? amount : 0).toFixed(2)}
+            </Text>
+          </Group>
+          <Group justify="space-between">
+            <Text fw={700}>{t.scan.lineAfter}</Text>
+            <Text fw={700} size="lg">
+              {(valid ? gross - amount : gross).toFixed(2)}
+            </Text>
+          </Group>
+        </Stack>
+        {!isSuperadmin && (
+          <Text size="xs" c="dimmed">
+            {t.scan.discountPinHint}
+          </Text>
+        )}
+        <Group justify="space-between">
+          {line && line.discount > 0 ? (
+            <Button variant="subtle" color="red" onClick={() => onConfirm(0)}>
+              {t.scan.removeDiscount}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Group gap="xs">
+            <Button variant="default" onClick={onClose}>
+              {t.common.cancel}
+            </Button>
+            <Button disabled={!valid} onClick={submit}>
+              {t.scan.applyDiscount}
+            </Button>
+          </Group>
         </Group>
       </Stack>
     </Modal>

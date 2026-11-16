@@ -126,17 +126,23 @@ export const platform = {
     return { success: true };
   },
 
-  async printReceipt(html: string): Promise<void> {
+  /** A receipt page: silently to `printer` (a Windows printer's name), or
+   *  through the print dialog when it is null. error is "cancelled" when the
+   *  dialog was closed without printing. */
+  async printReceipt(html: string, printer: string | null = null): Promise<{ success: boolean; error?: string }> {
     if (hasElectron) {
-      await window.api!.printReceipt(html);
-      return;
+      try {
+        return await window.api!.printReceipt(html, printer);
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
     }
     const w = window.open("", "_blank", "width=380,height=600");
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-      w.print();
-    }
+    if (!w) return { success: false, error: "The print window was blocked." };
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
+    return { success: true };
   },
 };

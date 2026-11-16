@@ -626,7 +626,10 @@ function ReprintButton({ saleId }: { saleId: number }) {
         setBusy(true);
         try {
           const sale = (await api.get<Order>(`/orders/${saleId}/`)).data;
-          await printOrderReceipt(sale, { copy: true, openDrawer: false });
+          const result = await printOrderReceipt(sale, { copy: true, openDrawer: false });
+          if (!result.success && !result.cancelled) {
+            notifications.show({ color: "orange", message: result.error || t.newOrder.receiptFailedHint });
+          }
         } catch {
           notifications.show({ color: "red", message: t.common.failed });
         } finally {

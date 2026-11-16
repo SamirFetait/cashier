@@ -32,6 +32,9 @@ interface FormState {
   phone_number: string;
   password: string;
   is_active: boolean;
+  /** The manager PIN to set; blank keeps the current one. */
+  override_pin: string;
+  has_override_pin: boolean;
 }
 
 const empty: FormState = {
@@ -40,6 +43,8 @@ const empty: FormState = {
   phone_number: "",
   password: "",
   is_active: true,
+  override_pin: "",
+  has_override_pin: false,
 };
 
 export function Users() {
@@ -64,6 +69,7 @@ export function Users() {
         is_active: f.is_active,
       };
       if (f.password) payload.password = f.password;
+      if (f.override_pin) payload.override_pin = f.override_pin;
       if (f.id) return api.patch(`/users/${f.id}/`, payload);
       return api.post("/users/", payload);
     },
@@ -72,7 +78,12 @@ export function Users() {
       close();
       notifications.show({ message: t.users.saved, color: "green" });
     },
-    onError: () => notifications.show({ message: t.common.saveFailed, color: "red" }),
+    onError: (err: any) =>
+      notifications.show({
+        title: t.common.saveFailed,
+        message: err?.response?.data?.override_pin?.[0] ?? undefined,
+        color: "red",
+      }),
   });
 
   return (
@@ -106,9 +117,17 @@ export function Users() {
               <Table.Tr key={u.id}>
                 <Table.Td>{u.username}</Table.Td>
                 <Table.Td>
-                  <Badge color={u.role === "SUPERADMIN" ? "gold.4" : "teal"} autoContrast>
-                    {t.roles[u.role]}
-                  </Badge>
+                  <Group gap={6}>
+                    <Badge color={u.role === "SUPERADMIN" ? "gold.4" : "teal"} autoContrast>
+                      {t.roles[u.role]}
+                    </Badge>
+                    {/* Cashiers' large discounts, voids and refunds need a manager's PIN. */}
+                    {u.is_superadmin && !u.has_override_pin && (
+                      <Badge color="red" variant="light">
+                        {t.users.noPin}
+                      </Badge>
+                    )}
+                  </Group>
                 </Table.Td>
                 <Table.Td>{u.phone_number ? ltr(u.phone_number) : "—"}</Table.Td>
                 <Table.Td>
@@ -129,6 +148,8 @@ export function Users() {
                           phone_number: u.phone_number,
                           password: "",
                           is_active: u.is_active,
+                          override_pin: "",
+                          has_override_pin: Boolean(u.has_override_pin),
                         });
                         open();
                       }}
@@ -181,12 +202,28 @@ export function Users() {
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.currentTarget.value })}
           />
+          {form.role === "SUPERADMIN" && (
+            <PasswordInput
+              label={t.users.pin}
+              description={form.has_override_pin ? t.users.pinKeep : t.users.pinHint}
+              inputMode="numeric"
+              dir="ltr"
+              maxLength={12}
+              value={form.override_pin}
+              onChange={(e) => setForm({ ...form, override_pin: e.currentTarget.value.replace(/\D/g, "") })}
+              error={form.override_pin && form.override_pin.length < 4 ? t.users.pinShort : undefined}
+            />
+          )}
           <Switch
             label={t.common.active}
             checked={form.is_active}
             onChange={(e) => setForm({ ...form, is_active: e.currentTarget.checked })}
           />
-          <Button loading={save.isPending} onClick={() => save.mutate(form)}>
+          <Button
+            loading={save.isPending}
+            disabled={Boolean(form.override_pin) && form.override_pin.length < 4}
+            onClick={() => save.mutate(form)}
+          >
             {t.common.save}
           </Button>
         </Stack>

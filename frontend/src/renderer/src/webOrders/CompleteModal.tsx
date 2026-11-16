@@ -81,12 +81,21 @@ export function CompleteModal({
       void client.invalidateQueries({ queryKey: ["orders"] });
       void client.invalidateQueries({ queryKey: ["shift"] });
       if (done.pos.order_id) {
-        // A printer fault must not look like a failed sale: it is recorded.
+        // A printer fault must not look like a failed sale: it is recorded,
+        // and the receipt can be printed again from the order.
+        let printed: { success: boolean; error?: string; cancelled?: boolean };
         try {
           const sale = (await api.get<Order>(`/orders/${done.pos.order_id}/`)).data;
-          await printOrderReceipt(sale);
-        } catch {
-          /* reprint from the order or from Invoices */
+          printed = await printOrderReceipt(sale);
+        } catch (err) {
+          printed = { success: false, error: (err as Error).message };
+        }
+        if (!printed.success && !printed.cancelled) {
+          notifications.show({
+            color: "orange",
+            title: t.newOrder.receiptFailed,
+            message: printed.error || t.newOrder.receiptFailedHint,
+          });
         }
       }
     } catch (failure) {

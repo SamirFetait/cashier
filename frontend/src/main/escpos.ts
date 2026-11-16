@@ -9,6 +9,10 @@
  * compile at install time:
  *   - network: nearly all counter-top printers listen on TCP 9100
  *   - device:  a Windows share (\\host\printer) or /dev/usb/lp0 on Linux
+ *
+ * A third setting, "windows", does not use this file at all: the receipt is
+ * drawn as a page and printed silently through the printer's own Windows
+ * driver (see receipt:print in index.ts), which also prints Arabic.
  */
 import { createWriteStream } from "fs";
 import { Socket } from "net";
@@ -17,10 +21,12 @@ const ESC = 0x1b;
 const GS = 0x1d;
 
 export interface PrinterConfig {
-  transport: "network" | "device" | "none";
+  transport: "network" | "device" | "windows" | "none";
   host?: string;
   port?: number;
   path?: string;
+  /** "windows": the installed printer's name, as Windows lists it. */
+  printer?: string;
   /** Characters per line: 32 for 58mm paper, 42 for 80mm. */
   width?: number;
   codepage?: number;

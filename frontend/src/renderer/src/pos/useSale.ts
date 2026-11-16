@@ -30,8 +30,18 @@ export function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-export const lineTotal = (line: CartLine) =>
-  round2(Number(line.product.price) * line.quantity - line.discount);
+/** The line before its discount: price × quantity. */
+export const lineGross = (line: Pick<CartLine, "product" | "quantity">) =>
+  round2(Number(line.product.price) * line.quantity);
+
+export const lineTotal = (line: CartLine) => round2(lineGross(line) - line.discount);
+
+/** Where the last sale's receipt stands, for the "print again" button. */
+export interface ReceiptState {
+  order: Order;
+  status: "printing" | "printed" | "notPrinted";
+  error?: string;
+}
 
 /**
  * A receipt for a sale the server has not seen yet.
@@ -168,15 +178,25 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
     });
   }
 
+  // A line's discount never exceeds what the line costs, so fewer pieces
+  // after a discount cannot make the server refuse the sale.
   function setQty(id: number, qty: number) {
     setCart((prev) =>
-      prev.map((l) => (l.product.id === id ? { ...l, quantity: Math.max(0, qty) } : l))
+      prev.map((l) => {
+        if (l.product.id !== id) return l;
+        const quantity = Math.max(0, qty);
+        return { ...l, quantity, discount: Math.min(l.discount, lineGross({ ...l, quantity })) };
+      })
     );
   }
 
   function setLineDiscount(id: number, value: number) {
     setCart((prev) =>
-      prev.map((l) => (l.product.id === id ? { ...l, discount: Math.max(0, value) } : l))
+      prev.map((l) =>
+        l.product.id === id
+          ? { ...l, discount: round2(Math.min(Math.max(0, value), lineGross(l))) }
+          : l
+      )
     );
   }
 
@@ -191,7 +211,32 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
       ),
     [cart]
   );
+  /** Before any discount, and what the item discounts take off it. */
+  const gross = useMemo(() => round2(cart.reduce((s, l) => s + lineGross(l), 0)), [cart]);
+  const itemsDiscount = round2(gross - subtotal);
   const total = round2(Math.max(0, subtotal - orderDiscount));
+
+  const [receipt, setReceipt] = useState<ReceiptState | null>(null);
+
+  /** Print a settled sale. Its outcome only ever changes the receipt state:
+   *  the sale is recorded whatever the printer does. */
+  async function printReceipt(order: Order, again = false) {
+    setReceipt({ order, status: "printing" });
+    // A second copy is marked as one, and never pops the drawer again.
+    const result = await printOrderReceipt(order, again ? { copy: true, openDrawer: false } : {});
+    if (result.success) {
+      setReceipt({ order, status: "printed" });
+      return;
+    }
+    setReceipt({ order, status: "notPrinted", error: result.error });
+    if (!result.cancelled) {
+      notifications.show({
+        title: t.newOrder.receiptFailed,
+        message: result.error || t.newOrder.receiptFailedHint,
+        color: "orange",
+      });
+    }
+  }
 
   function clearSale() {
     setCart([]);
@@ -260,8 +305,10 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
         reference: p.reference ?? "",
       })),
     };
+    let settled: Order;
     try {
       const resp = await api.post<Order>("/orders/", payload);
+      settled = resp.data;
       const change = Number(resp.data.change_given || 0);
       notifications.show({
         title: t.newOrder.saleDone(resp.data.receipt_number ?? ""),
@@ -271,7 +318,6 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
         ),
         color: "green",
       });
-      await printOrderReceipt(resp.data);
       clearSale();
       onCompleted.current?.(resp.data, false);
       qc.invalidateQueries({ queryKey: ["products"] });
@@ -291,10 +337,10 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
           message: t.newOrder.savedOfflineMessage,
           color: "yellow",
         });
-        await printOrderReceipt(offlineOrder);
         clearSale();
         onCompleted.current?.(offlineOrder, true);
         setSubmitting(false);
+        void printReceipt(offlineOrder);
         return;
       }
       const data = err?.response?.data;
@@ -321,9 +367,13 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
               .join(" · ")
           : t.newOrder.checkoutFailed);
       notifications.show({ title: t.newOrder.checkoutFailed, message: detail, color: "red" });
-    } finally {
       setSubmitting(false);
+      return;
     }
+    setSubmitting(false);
+    // Only now, outside the sale's own error handling: the sale is recorded,
+    // so whatever the printer does cannot look like a failed checkout.
+    void printReceipt(settled);
   }
 
   return {
@@ -336,7 +386,12 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
     orderDiscount,
     setOrderDiscount,
     subtotal,
+    gross,
+    itemsDiscount,
     total,
+    /** The last sale's receipt, and printing it (again). */
+    receipt,
+    printReceipt,
     invalidLines,
     held,
     submitting,

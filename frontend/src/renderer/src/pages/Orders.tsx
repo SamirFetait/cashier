@@ -283,7 +283,17 @@ export function Orders() {
               <Button
                 variant="default"
                 leftSection={<IconPrinter size={16} />}
-                onClick={() => printOrderReceipt(selected)}
+                // A reprint is marked as a copy and never pops the drawer.
+                onClick={async () => {
+                  const result = await printOrderReceipt(selected, { copy: true, openDrawer: false });
+                  if (!result.success && !result.cancelled) {
+                    notifications.show({
+                      title: t.newOrder.receiptFailedHint,
+                      message: result.error ?? t.common.unknownError,
+                      color: "orange",
+                    });
+                  }
+                }}
               >
                 {t.orders.reprint}
               </Button>

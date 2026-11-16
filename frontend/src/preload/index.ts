@@ -9,8 +9,10 @@ const api = {
     set: (tokens: unknown): Promise<boolean> => ipcRenderer.invoke("auth:set", tokens),
     clear: (): Promise<boolean> => ipcRenderer.invoke("auth:clear"),
   },
-  printReceipt: (html: string): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke("receipt:print", html),
+  /** Print a receipt page: silently to `printer` (a Windows printer name), or
+   *  through the print dialog when it is null. */
+  printReceipt: (html: string, printer: string | null = null): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke("receipt:print", html, printer),
   printer: {
     get: (): Promise<unknown> => ipcRenderer.invoke("printer:get"),
     set: (config: unknown): Promise<boolean> =>

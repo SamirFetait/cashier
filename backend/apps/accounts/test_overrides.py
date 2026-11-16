@@ -207,6 +207,32 @@ class DiscountOverrideTests(OverrideBase):
         self.assertIn("override_pin", resp.data)
         self.assertEqual(Order.objects.count(), 0)
 
+    def test_cashier_can_discount_an_item_without_a_pin(self):
+        resp = self.client.post(
+            "/api/orders/",
+            {
+                "items": [{"product": self.product.id, "quantity": 20, "discount": "10.00"}],  # 10%
+                "payments": [{"method": "CASH", "amount": "90.00", "tendered": "100.00"}],
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual((resp.data["total"], resp.data["items"][0]["discount"]), ("90.00", "10.00"))
+
+    def test_item_discounts_count_towards_the_pin_limit(self):
+        # 15% off the item and 10% off the invoice: 25% in all, over the 20% limit.
+        resp = self.client.post(
+            "/api/orders/",
+            {
+                "items": [{"product": self.product.id, "quantity": 20, "discount": "15.00"}],
+                "discount": "10.00",
+                "payments": [{"method": "CASH", "amount": "75.00", "tendered": "75.00"}],
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("override_pin", resp.data)
+
     def test_large_discount_with_pin_is_recorded_against_the_manager(self):
         resp = self.client.post(
             "/api/orders/",
