@@ -2,6 +2,7 @@
 that drive the website's API the way the two web apps do."""
 from decimal import Decimal
 from io import BytesIO
+from unittest import mock
 
 from django.core.cache import cache
 from django.test import TestCase, override_settings
@@ -12,6 +13,7 @@ from apps.accounts.models import User
 from apps.inventory.models import Storage, apply_stock_change
 from apps.products.models import Category, Product
 from apps.webshop.models import ShopSettings, WebOrder
+from apps.whatsapp.client import WhatsAppError
 
 PASSWORD = "secret-pass-123"
 SHOP = "/api/shop"
@@ -45,6 +47,11 @@ def make_product(name, price, *, stock=None, storage=None, category=None, unit="
 class ShopTestCase(TestCase):
     def setUp(self):
         cache.clear()  # rate limits, the catalogue cache and the expiry guard
+        # Never reach a real WhatsApp sidecar; tests that care patch these again.
+        for target in ("apps.whatsapp.client.get_status", "apps.webshop.alerts.send_message"):
+            patcher = mock.patch(target, side_effect=WhatsAppError("not running in tests"))
+            patcher.start()
+            self.addCleanup(patcher.stop)
         self.admin_user = User.objects.create_user(
             "samir", password=PASSWORD, role=User.Role.SUPERADMIN, is_superuser=True, is_staff=True
         )

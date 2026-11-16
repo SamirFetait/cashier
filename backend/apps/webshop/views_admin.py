@@ -19,8 +19,9 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsSuperAdmin
 from apps.products.models import Product
+from apps.whatsapp import client as whatsapp_client
 
-from . import catalog, media, pricing, services
+from . import alerts, catalog, media, phones, pricing, services
 from .errors import ShopError, ShopView
 from .images import MAX_UPLOAD_BYTES, InvalidImage, process_photo, process_qr
 from .models import DepositProof, Listing, ShopSettings, ShopVideo, StoredImage, WebOrder
@@ -247,6 +248,14 @@ class SettingsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("The payment link must start with https://")
         return value
 
+    def validate_alert_whatsapp(self, value):
+        if not value.strip():
+            return ""
+        try:
+            return phones.normalize_phone(value)
+        except phones.InvalidPhone as exc:
+            raise serializers.ValidationError(str(exc))
+
     def validate(self, attrs):
         delivery = attrs.get("delivery_enabled", getattr(self.instance, "delivery_enabled", True))
         pickup = attrs.get("pickup_enabled", getattr(self.instance, "pickup_enabled", True))
@@ -309,7 +318,27 @@ class HealthView(AdminView):
             "instapay_ready": settings.instapay_ready,
             "ordering_enabled": settings.ordering_enabled,
             "site_url": getattr(django_settings, "SHOP_SITE_URL", ""),
+            "whatsapp": _whatsapp_health(settings),
         })
+
+
+def _whatsapp_health(settings: ShopSettings) -> dict:
+    """Whether order alerts can reach the shop. A paired account messaging
+    its own number lands in "Message yourself", which rings no phone."""
+    to = alerts.alert_number(settings)
+    try:
+        status = whatsapp_client.get_status(timeout=3)
+        connected, sender, error = bool(status.get("connected")), status.get("number") or "", ""
+    except whatsapp_client.WhatsAppError as exc:
+        connected, sender, error = False, "", str(exc)
+    return {
+        "alerts": settings.whatsapp_alerts,
+        "to": to,
+        "connected": connected,
+        "from": sender,
+        "same_number": bool(sender) and sender == to,
+        "error": error,
+    }
 
 
 # --- Website catalogue ------------------------------------------------------

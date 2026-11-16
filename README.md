@@ -182,8 +182,9 @@ npm run dev
 
 After steps 1 and 3, `npm start` from the repo root does both: it starts the Django dev server
 with `backend/venv`, waits for it on port 8000, then runs `npm run dev` in `frontend/`. Closing
-the app window (or pressing Ctrl+C) stops both. The WhatsApp sidecar isn't included; start it
-separately if you need it.
+the app window (or pressing Ctrl+C) stops both. When the WhatsApp sidecar is installed (step 2),
+it starts too and stops with the rest; if it stops on its own, the app keeps running without
+WhatsApp.
 
 ### 4) HQ central service (optional — only if you want cross-branch reporting)
 

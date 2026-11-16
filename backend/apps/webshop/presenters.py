@@ -399,6 +399,8 @@ def settings_json(settings: ShopSettings) -> dict:
         "free_delivery_over": m(settings.free_delivery_over),
         "min_order": m(settings.min_order),
         "whatsapp": settings.whatsapp,
+        "whatsapp_alerts": settings.whatsapp_alerts,
+        "alert_whatsapp": settings.alert_whatsapp,
         "address_ar": settings.address_ar,
         "address_en": settings.address_en,
         "hours_ar": settings.hours_ar,

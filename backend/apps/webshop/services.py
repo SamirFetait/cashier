@@ -26,7 +26,7 @@ from rest_framework import serializers as drf_serializers
 from apps.customers.models import Customer
 from apps.orders.models import Order
 
-from . import catalog, phones, pricing
+from . import alerts, catalog, phones, pricing
 from .errors import ShopError, first_message
 from .images import ProcessedImage
 from .models import DepositProof, ShopSettings, WebOrder, WebOrderEvent, WebOrderItem
@@ -180,6 +180,8 @@ def create_order(
                 order, Kind.STATUS, actor="system", public=True,
                 data={"from": Status.AWAITING_DEPOSIT, "to": Status.CONFIRMED, "auto": True},
             )
+            # The shop has something to prepare now: tell it on WhatsApp.
+            alerts.alert_shop(order, alerts.PLACED)
     return order
 
 
@@ -227,6 +229,8 @@ def submit_deposit(order: WebOrder, *, reference="", sender="", proof: Processed
             order, Kind.DEPOSIT_SUBMITTED, actor="customer", public=True,
             data={"reference": order.deposit_reference, "proof": proof is not None},
         )
+        # A transfer to check: send the shop the order and the screenshot.
+        alerts.alert_shop(order, alerts.DEPOSIT)
     return order
 
 

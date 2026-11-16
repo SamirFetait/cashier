@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const QRCode = require("qrcode");
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 
 const PORT = process.env.PORT || 3001;
 const SHARED_SECRET = process.env.WHATSAPP_SHARED_SECRET || "";
@@ -67,7 +67,8 @@ client.initialize().catch((err) => {
 
 // --- HTTP API ---
 const app = express();
-app.use(express.json());
+// Room for a picture sent along (base64, so a third larger than the file).
+app.use(express.json({ limit: "16mb" }));
 
 // Unauthenticated liveness probe (used by docker healthcheck).
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -82,22 +83,34 @@ app.use((req, res, next) => {
 app.get("/status", (_req, res) => {
   res.json({
     connected: state.connected,
+    // The paired account's own number (digits), so the backend can tell when
+    // it is asked to message itself.
+    number: state.connected ? client.info?.wid?.user || null : null,
     qr: state.connected ? null : state.qr,
     error: state.lastError,
   });
 });
 
+// { number, message } sends text. With media: { mimetype, data (base64),
+// filename } it sends that file, with the message as its caption.
 app.post("/send", async (req, res) => {
-  const { number, message } = req.body || {};
-  if (!number || !message) {
-    return res.status(400).json({ error: "number and message are required" });
+  const { number, message, media } = req.body || {};
+  if (!number || (!message && !media)) {
+    return res.status(400).json({ error: "number and message (or media) are required" });
+  }
+  if (media && (!media.mimetype || !media.data)) {
+    return res.status(400).json({ error: "media needs mimetype and data" });
   }
   if (!state.connected) {
     return res.status(409).json({ error: "WhatsApp is not connected. Pair it first." });
   }
   try {
     const chatId = `${String(number).replace(/\D/g, "")}@c.us`;
-    const sent = await client.sendMessage(chatId, message);
+    const sent = media
+      ? await client.sendMessage(chatId, new MessageMedia(media.mimetype, media.data, media.filename || null), {
+          caption: message || undefined,
+        })
+      : await client.sendMessage(chatId, message);
     res.json({ success: true, id: sent?.id?._serialized || null });
   } catch (err) {
     console.error("[whatsapp] send failed:", err);

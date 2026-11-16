@@ -50,6 +50,15 @@ class ShopSettings(models.Model):
     free_delivery_over = money_field(null=True, blank=True, validators=[MinValueValidator(ZERO)])
     min_order = money_field(default=ZERO, validators=[MinValueValidator(ZERO)])
 
+    # --- WhatsApp alerts the server sends the shop (see alerts.py) ---
+    whatsapp_alerts = models.BooleanField(
+        default=True, help_text="Send each order that needs the shop to WhatsApp"
+    )
+    alert_whatsapp = models.CharField(
+        max_length=32, blank=True,
+        help_text="Number that receives the alerts; empty sends them to the store WhatsApp number",
+    )
+
     # --- Shown on the storefront ---
     whatsapp = models.CharField(max_length=32, blank=True, default="+20 15 53211120")
     address_ar = models.CharField(max_length=255, blank=True)

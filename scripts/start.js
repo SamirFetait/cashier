@@ -1,6 +1,9 @@
 // `npm start` from the repo root: runs the Django API, waits until it accepts connections,
 // then runs the Electron app (`npm run dev` in frontend/). When either one exits (you close
 // the app window, or the backend dies), the other is stopped too. Ctrl+C stops both.
+//
+// The WhatsApp sidecar (whatsapp-service/) also starts when it is installed, so supplier
+// messages and website order alerts work. It is optional: if it stops, the rest keeps going.
 'use strict';
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -14,19 +17,23 @@ const { setTimeout: sleep } = require('node:timers/promises');
 const HOST = '127.0.0.1';
 const PORT = 8000;
 
+// Must match WHATSAPP_SERVICE_URL in backend/.env (http://localhost:3001 by default).
+const WHATSAPP_PORT = 3001;
+
 const root = path.resolve(__dirname, '..');
 const backendDir = path.join(root, 'backend');
 const frontendDir = path.join(root, 'frontend');
+const whatsappDir = path.join(root, 'whatsapp-service');
 const isWindows = process.platform === 'win32';
 
-const running = new Map(); // child process -> 'backend' | 'frontend'
+const running = new Map(); // child process -> 'backend' | 'frontend' | 'WhatsApp service'
 let stopping = false;
 
 const log = (message) => console.log(`[start] ${message}`);
 
-function isListening() {
+function isListening(port = PORT) {
   return new Promise((resolve) => {
-    const socket = net.connect(PORT, HOST);
+    const socket = net.connect(port, HOST);
     socket.setTimeout(1000);
     socket.once('connect', () => {
       socket.destroy();
@@ -50,7 +57,8 @@ function findPython() {
   return fallback;
 }
 
-function launch(name, command, args, options) {
+// An optional child that exits is reported and left down; any other one stops everything.
+function launch(name, command, args, options, { optional = false } = {}) {
   const child = spawn(command, args, options);
   running.set(child, name);
   let done = false;
@@ -58,6 +66,10 @@ function launch(name, command, args, options) {
     if (done) return;
     done = true;
     running.delete(child);
+    if (optional) {
+      if (!stopping) log(`The ${name} ${what}. Everything else keeps running.`);
+      return;
+    }
     if (!stopping) {
       const rest = [...running.values()];
       log(`The ${name} ${what}${rest.length ? `, stopping the ${rest.join(' and ')}` : ''}.`);
@@ -115,6 +127,8 @@ async function main() {
   while (!stopping && !(await isListening())) await sleep(250);
   if (stopping) return;
 
+  await startWhatsApp();
+
   log('Backend is up, starting the frontend ...');
   // Under `npm start`, npm_execpath is npm's own CLI script. Running it with this Node skips
   // the npm.cmd and cmd.exe wrappers on Windows. Otherwise use whatever npm is on PATH.
@@ -130,6 +144,24 @@ async function main() {
     // cmd.exe's "Terminate batch job (Y/N)?" prompt waiting for an answer.
     stdio: ['ignore', 'inherit', 'inherit'],
   });
+}
+
+async function startWhatsApp() {
+  if (!fs.existsSync(path.join(whatsappDir, 'node_modules'))) {
+    log('WhatsApp service not installed (whatsapp-service/node_modules), so no WhatsApp messages or order alerts.');
+    return;
+  }
+  if (await isListening(WHATSAPP_PORT)) {
+    log(`Something is already on port ${WHATSAPP_PORT}; using that as the WhatsApp service.`);
+    return;
+  }
+  log('Starting the WhatsApp service ...');
+  // It runs a headless Chromium; kill() ends that with it, as part of its process tree.
+  launch('WhatsApp service', process.execPath, ['src/index.js'], {
+    cwd: whatsappDir,
+    stdio: ['ignore', 'inherit', 'inherit'],
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined },
+  }, { optional: true });
 }
 
 main().catch((error) => {

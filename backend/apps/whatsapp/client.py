@@ -30,10 +30,11 @@ def _headers():
     return {"x-api-key": settings.WHATSAPP_SHARED_SECRET}
 
 
-def get_status() -> dict:
+def get_status(timeout: float = 10) -> dict:
+    """{connected, number (the paired account's), qr, error}."""
     try:
         resp = requests.get(
-            f"{settings.WHATSAPP_SERVICE_URL}/status", headers=_headers(), timeout=10
+            f"{settings.WHATSAPP_SERVICE_URL}/status", headers=_headers(), timeout=timeout
         )
         resp.raise_for_status()
         return resp.json()
@@ -41,8 +42,14 @@ def get_status() -> dict:
         raise WhatsAppError(f"WhatsApp service unreachable: {exc}") from exc
 
 
-def send_message(number: str, message: str) -> dict:
+def send_message(number: str, message: str, media: dict | None = None) -> dict:
+    """Send text, or a file with the text as its caption.
+
+    ``media`` is ``{"mimetype": ..., "data": <base64>, "filename": ...}``.
+    """
     payload = {"number": normalize_number(number), "message": message}
+    if media:
+        payload["media"] = media
     try:
         resp = requests.post(
             f"{settings.WHATSAPP_SERVICE_URL}/send",
