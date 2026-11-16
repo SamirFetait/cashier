@@ -74,10 +74,13 @@ class ShopTestCase(TestCase):
 
     # --- storefront helpers ---
     def place(self, items=None, **overrides):
+        """A delivery by default: the order that goes through the deposit.
+        Pass fulfilment="PICKUP" for one that is accepted at once."""
         body = {
             "name": "Mona Ali",
             "phone": "0101 234 5678",
-            "fulfilment": "PICKUP",
+            "fulfilment": "DELIVERY",
+            "address": "12 Nile St, Maadi",
             "items": [{"id": self.honey.pk, "qty": "2"}] if items is None else items,
         }
         body.update(overrides)

@@ -56,6 +56,20 @@ class CompletionTests(ShopTestCase):
         self.assertEqual(tracked["final_total"], "522.50")
         self.assertEqual(client.get(f"{SHOP}/admin/board/").json()["summary"]["sales_today"], "522.50")
 
+    def test_a_pickup_is_rung_up_as_one_tender_for_everything(self):
+        public = self.place_ok([{"id": self.honey.pk, "qty": 2}], fulfilment="PICKUP")
+        client = self.staff_client("cashier")
+        pk = self.pk_of(public)
+        plan = client.get(f"{SHOP}/admin/orders/{pk}/sale-plan/").json()
+        self.assertEqual((plan["deposit_applied"], plan["balance"], plan["to_collect"]), ("0.00", "500.00", "500.00"))
+
+        done = self.complete(client, pk, balance_method="CASH").json()["order"]
+        self.assertEqual((done["status"], done["pos"]["completed_by"]), ("COMPLETED", "cashier"))
+        sale = Order.objects.get(pk=done["pos"]["order_id"])
+        self.assertEqual([(p.method, p.amount) for p in sale.payments.all()], [("CASH", D("500.00"))])
+        self.assertEqual(sale.shift, self.shift)
+        self.assertEqual(StockItem.objects.get(product=self.honey).quantity, D("8.000"))
+
     def test_a_known_customer_is_reused(self):
         existing = Customer.objects.create(name="Mona", phone_number="+201012345678")
         _, order, client = self.confirmed_order()

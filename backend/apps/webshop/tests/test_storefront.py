@@ -18,7 +18,8 @@ D = Decimal
 class CatalogTests(ShopTestCase):
     def test_config_tells_the_storefront_the_rules(self):
         data = self.client.get(f"{SHOP}/config/").json()
-        self.assertEqual(data["ordering"], {"enabled": True, "reason": ""})
+        open_ = {"enabled": True, "reason": ""}
+        self.assertEqual(data["ordering"], {**open_, "delivery": open_, "pickup": open_})
         self.assertEqual(data["deposit"]["percent"], 50)
         self.assertEqual(data["limits"]["weight_step"], "0.250")
         self.assertEqual(data["videos"], {"hero": None, "stories": []})
@@ -68,7 +69,7 @@ class CatalogTests(ShopTestCase):
     def test_quote_endpoint(self):
         response = self.client.post(
             f"{SHOP}/quote/",
-            {"items": [{"id": self.honey.pk, "qty": 1}, {"id": self.dates.pk, "qty": 9}], "fulfilment": "PICKUP"},
+            {"items": [{"id": self.honey.pk, "qty": 1}, {"id": self.dates.pk, "qty": 9}], "fulfilment": "DELIVERY"},
             format="json",
         )
         data = response.json()
@@ -139,15 +140,83 @@ class OrderPlacementTests(ShopTestCase):
         self.place_ok([{"id": self.dates.pk, "qty": 1}], phone="01112345678")
 
     def test_one_phone_cannot_pile_up_unpaid_orders(self):
-        for _ in range(services.MAX_UNPAID_PER_PHONE):
+        for _ in range(services.MAX_OPEN_PER_PHONE):
             self.place_ok([{"id": self.honey.pk, "qty": 1}])
         response = self.place([{"id": self.honey.pk, "qty": 1}])
-        self.assertEqual((response.status_code, response.json()["code"]), (409, "TOO_MANY_UNPAID"))
+        self.assertEqual((response.status_code, response.json()["code"]), (409, "TOO_MANY_OPEN"))
+
+    def test_uncollected_pickups_count_towards_the_limit(self):
+        self.place_ok([{"id": self.honey.pk, "qty": 1}])
+        for _ in range(services.MAX_OPEN_PER_PHONE - 1):
+            self.place_ok([{"id": self.honey.pk, "qty": 1}], fulfilment="PICKUP")
+        response = self.place([{"id": self.honey.pk, "qty": 1}], fulfilment="PICKUP")
+        self.assertEqual((response.status_code, response.json()["code"]), (409, "TOO_MANY_OPEN"))
+        self.place_ok([{"id": self.honey.pk, "qty": 1}], fulfilment="PICKUP", phone="01112345678")
 
     def test_ordering_switched_off(self):
         self.shop_settings(ordering_enabled=False)
-        self.assertEqual(self.client.get(f"{SHOP}/config/").json()["ordering"]["reason"], "DISABLED")
+        ordering = self.client.get(f"{SHOP}/config/").json()["ordering"]
+        self.assertEqual((ordering["reason"], ordering["pickup"]["reason"]), ("DISABLED", "DISABLED"))
         self.assertIn("ORDERING_DISABLED", self.place().json()["quote"]["problems"])
+        self.assertIn("ORDERING_DISABLED", self.place(fulfilment="PICKUP").json()["quote"]["problems"])
+
+
+class PickupTests(ShopTestCase):
+    def test_a_pickup_is_accepted_at_once_with_nothing_to_pay_now(self):
+        order = self.place_ok([{"id": self.honey.pk, "qty": 2}], fulfilment="PICKUP", expected_total="500.00")
+        self.assertEqual(order["status"], "CONFIRMED")
+        self.assertEqual((order["total"], order["deposit_required"], order["balance_due"]), ("500.00", "0.00", "500.00"))
+        self.assertIsNone(order["payment"])
+        self.assertIsNone(order["expires_at"])
+        self.assertTrue(order["can_cancel"])
+        self.assertEqual([(e["kind"], e["to"]) for e in order["timeline"]], [("CREATED", ""), ("STATUS", "CONFIRMED")])
+
+        saved = WebOrder.objects.get(code=order["code"])
+        self.assertIsNotNone(saved.confirmed_at)
+        # Held back from the website, not sold: the till's stock is untouched.
+        self.assertEqual(StockItem.objects.get(product=self.honey).quantity, D("10.000"))
+        self.assertEqual(services.pricing.reserved_quantities()[self.honey.pk], D("2.000"))
+
+    def test_pickup_is_open_before_instapay_is_set_up(self):
+        self.shop_settings(instapay_address="", instapay_name="")
+        ordering = self.client.get(f"{SHOP}/config/").json()["ordering"]
+        self.assertTrue(ordering["enabled"])
+        self.assertEqual(ordering["delivery"], {"enabled": False, "reason": "INSTAPAY_NOT_CONFIGURED"})
+        self.assertEqual(ordering["pickup"], {"enabled": True, "reason": ""})
+
+        self.assertEqual(self.place_ok(fulfilment="PICKUP")["status"], "CONFIRMED")
+        refused = self.place()
+        self.assertEqual(refused.json()["code"], "CART_CHANGED")
+        self.assertIn("INSTAPAY_NOT_CONFIGURED", refused.json()["quote"]["problems"])
+
+    def test_nothing_open_when_pickup_is_off_and_instapay_is_missing(self):
+        self.shop_settings(instapay_address="", instapay_name="", pickup_enabled=False)
+        ordering = self.client.get(f"{SHOP}/config/").json()["ordering"]
+        self.assertEqual((ordering["enabled"], ordering["reason"]), (False, "INSTAPAY_NOT_CONFIGURED"))
+        self.assertEqual(ordering["pickup"]["reason"], "FULFILMENT_UNAVAILABLE")
+
+    def test_there_is_no_deposit_to_send_for_a_pickup(self):
+        order = self.place_ok(fulfilment="PICKUP")
+        self.assertEqual(self.pay(order).json()["code"], "NOT_AWAITING_DEPOSIT")
+
+    def test_the_customer_may_cancel_until_the_store_starts_on_it(self):
+        order = self.place_ok([{"id": self.dates.pk, "qty": 4}], fulfilment="PICKUP")
+        cancelled = self.client.post(f"{SHOP}/orders/{order['code']}/cancel/", {"t": order["token"]}, format="json")
+        body = cancelled.json()["order"]
+        self.assertEqual((body["status"], body["can_cancel"]), ("CANCELLED", False))
+        self.place_ok([{"id": self.dates.pk, "qty": 4}], phone="01112345678")   # stock freed
+
+        started = self.place_ok([{"id": self.honey.pk, "qty": 1}], fulfilment="PICKUP")
+        client = self.staff_client("cashier")
+        self.assertEqual(self.act(client, self.pk_of(started), "status", {"status": "PREPARING"}).status_code, 200)
+        self.assertFalse(self.track(started)["can_cancel"])
+        refused = self.client.post(f"{SHOP}/orders/{started['code']}/cancel/", {"t": started["token"]}, format="json")
+        self.assertEqual((refused.status_code, refused.json()["code"]), (409, "CANNOT_CANCEL"))
+
+    def test_pickups_never_expire(self):
+        order = self.place_ok(fulfilment="PICKUP")
+        self.assertEqual(services.expire_stale(force=True), 0)
+        self.assertEqual(self.track(order)["status"], "CONFIRMED")
 
 
 class TrackingTests(ShopTestCase):

@@ -19,6 +19,7 @@ from decimal import Decimal
 from django.conf import settings as django_settings
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers as drf_serializers
 
@@ -38,9 +39,10 @@ MONEY = Decimal("0.01")
 # No 0/O, 1/I/L: the code is read out over the phone and typed into InstaPay.
 CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 CODE_PREFIX = "FK-"
-# One phone number may hold this many orders still waiting for a deposit,
-# so a prankster cannot tie up the shelves.
-MAX_UNPAID_PER_PHONE = 3
+# One phone number may hold this many orders that are holding stock without
+# money behind them (deliveries waiting for a deposit, pickups not collected
+# yet), so a prankster cannot tie up the shelves.
+MAX_OPEN_PER_PHONE = 3
 BALANCE_METHODS = ("CASH", "MOBILE", "CARD")
 
 Status = WebOrder.Status
@@ -93,11 +95,23 @@ def expire_stale(*, force: bool = False) -> int:
 # --- Placing an order (customer) --------------------------------------------
 
 
+def open_unpaid_count(phone: str) -> int:
+    """Orders on this number holding stock with nothing paid: deliveries
+    waiting for their deposit, and pickups not yet collected."""
+    return WebOrder.objects.filter(phone=phone, deposit_paid=ZERO).filter(
+        Q(status=Status.AWAITING_DEPOSIT)
+        | Q(fulfilment=WebOrder.Fulfilment.PICKUP, status__in=WebOrder.IN_PROGRESS)
+    ).count()
+
+
 def create_order(
     *, items, fulfilment, customer_name, phone, address="", notes="",
     language="ar", expected_total=None, client_ip=None,
 ) -> WebOrder:
     """Price the cart from live prices and stock, and reserve it.
+
+    A delivery waits for its InstaPay deposit. A pickup is accepted at once:
+    it is created confirmed, with nothing to pay until the customer collects.
 
     Raises ShopError with the fresh quote attached when the cart can no longer
     be ordered as the customer saw it (something sold out, a price moved).
@@ -121,14 +135,16 @@ def create_order(
                 "PRICE_CHANGED", "Prices have changed since the cart was shown.",
                 status=409, quote=quote_json(quote),
             )
-        unpaid = WebOrder.objects.filter(phone=phone, status=Status.AWAITING_DEPOSIT).count()
-        if unpaid >= MAX_UNPAID_PER_PHONE:
+        if open_unpaid_count(phone) >= MAX_OPEN_PER_PHONE:
             raise ShopError(
-                "TOO_MANY_UNPAID", "This number already has orders waiting for a deposit.", status=409
+                "TOO_MANY_OPEN", "This number already has several open orders.", status=409
             )
 
+        pickup = not pricing.takes_deposit(quote.fulfilment)
+        now = timezone.now()
         order = WebOrder(
-            status=Status.AWAITING_DEPOSIT,
+            status=Status.CONFIRMED if pickup else Status.AWAITING_DEPOSIT,
+            confirmed_at=now if pickup else None,
             access_token=secrets.token_urlsafe(24),
             language=language if language in ("ar", "en") else "ar",
             customer_name=customer_name,
@@ -140,7 +156,9 @@ def create_order(
             delivery_fee=quote.delivery_fee,
             total=quote.total,
             deposit_required=quote.deposit,
-            expires_at=timezone.now() + timedelta(minutes=settings.hold_minutes),
+            # Only a deposit can be waited for; a pickup holds until staff
+            # hand it over or cancel it.
+            expires_at=None if pickup else now + timedelta(minutes=settings.hold_minutes),
             client_ip=client_ip,
         )
         for _ in range(8):
@@ -157,7 +175,23 @@ def create_order(
             for line in quote.lines
         )
         log_event(order, Kind.CREATED, actor="customer", public=True)
+        if pickup:
+            log_event(
+                order, Kind.STATUS, actor="system", public=True,
+                data={"from": Status.AWAITING_DEPOSIT, "to": Status.CONFIRMED, "auto": True},
+            )
     return order
+
+
+def customer_can_cancel(order: WebOrder) -> bool:
+    """Before saying they paid, or, for a pickup, until staff start on it."""
+    if order.status == Status.AWAITING_DEPOSIT:
+        return True
+    return (
+        order.status == Status.CONFIRMED
+        and order.fulfilment == WebOrder.Fulfilment.PICKUP
+        and order.deposit_paid == ZERO
+    )
 
 
 def submit_deposit(order: WebOrder, *, reference="", sender="", proof: ProcessedImage | None = None) -> WebOrder:
@@ -197,10 +231,11 @@ def submit_deposit(order: WebOrder, *, reference="", sender="", proof: Processed
 
 
 def customer_cancel(order: WebOrder) -> WebOrder:
-    """A customer may back out as long as they have not said they paid."""
+    """A customer may back out as long as they have not said they paid, or,
+    for a pickup, until the store starts preparing it."""
     with transaction.atomic():
         order = _locked(order)
-        if order.status != Status.AWAITING_DEPOSIT:
+        if not customer_can_cancel(order):
             raise ShopError("CANNOT_CANCEL", "This order can no longer be cancelled online.", status=409)
         order.status = Status.CANCELLED
         order.cancelled_at = timezone.now()

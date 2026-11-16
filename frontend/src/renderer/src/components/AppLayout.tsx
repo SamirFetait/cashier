@@ -16,6 +16,7 @@ import {
   IconCashRegister,
   IconPrinter,
   IconChartBar,
+  IconWorld,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -28,6 +29,7 @@ import { BrandLockup } from "../brand/BrandLockup";
 import { BRAND_GRADIENT } from "../brand/theme";
 import { WhatsAppContact } from "../brand/WhatsAppContact";
 import { useI18n, type Messages } from "../i18n";
+import { useWebOrderAlerts } from "../webOrders/useWebOrderAlerts";
 import { LanguageToggle } from "./LanguageToggle";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { ThemeToggle } from "./ThemeToggle";
@@ -48,6 +50,8 @@ const NAV: NavItem[] = [
   { to: "/scan", label: "scan", icon: <IconScan size={18} /> },
   { to: "/new-order", label: "newOrder", icon: <IconShoppingCart size={18} /> },
   { to: "/orders", label: "orders", icon: <IconReceipt size={18} /> },
+  // Every user works the website's orders: they are picked up at this till.
+  { to: "/web-orders", label: "webOrders", icon: <IconWorld size={18} /> },
   { to: "/shift", label: "shift", icon: <IconCashRegister size={18} /> },
   { to: "/products", label: "products", icon: <IconBox size={18} />, adminOnly: true },
   { to: "/labels", label: "labels", icon: <IconBarcode size={18} />, adminOnly: true },
@@ -70,6 +74,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
     queryFn: async () => (await api.get<BranchInfo>("/branch/")).data,
     staleTime: 5 * 60 * 1000,
   });
+  // New website orders pop up on whatever screen is open.
+  useWebOrderAlerts();
 
   return (
     <AppShell

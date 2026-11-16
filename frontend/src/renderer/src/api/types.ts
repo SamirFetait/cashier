@@ -262,3 +262,162 @@ export interface DailyReport {
   payload: Record<string, unknown>;
   created_at: string;
 }
+
+// --- Website orders (served by /api/shop/admin/) ---------------------------
+
+export type WebOrderStatus =
+  | "AWAITING_DEPOSIT"
+  | "DEPOSIT_REVIEW"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "READY"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "EXPIRED";
+
+export type Fulfilment = "DELIVERY" | "PICKUP";
+
+/** A website order as the board and the search list show it. Money is a string ("12.50"). */
+export interface WebOrder {
+  id: number;
+  code: string;
+  status: WebOrderStatus;
+  fulfilment: Fulfilment;
+  /** The language the customer ordered in; messages to them go out in it. */
+  language: "ar" | "en";
+  customer_name: string;
+  phone: string;
+  /** The phone as wa.me wants it: country code first, digits only. */
+  whatsapp: string;
+  address: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  /** When an unpaid delivery stops holding its stock. */
+  expires_at: string | null;
+  subtotal: string;
+  delivery_fee: string;
+  total: string;
+  deposit_required: string;
+  deposit_paid: string;
+  balance_due: string;
+  items_count: number;
+  items_summary: string[];
+  deposit: {
+    reference: string;
+    sender: string;
+    submitted_at: string | null;
+    confirmed_at: string | null;
+    confirmed_by: string;
+    reject_reason: string;
+  };
+  refund: {
+    status: "NONE" | "DUE" | "DONE";
+    amount: string;
+    reference: string;
+    at: string | null;
+    by: string;
+  };
+  pos: {
+    /** The cashier sale it became at hand-over. */
+    order_id: number | null;
+    receipt_number: string;
+    total: string | null;
+    balance_method: string;
+    completed_by: string;
+    completed_at: string | null;
+  };
+  cancel: { reason: string; by: string; at: string | null };
+}
+
+export interface WebOrderItem {
+  product_id: number;
+  name: string;
+  unit: string;
+  sold_by: SoldBy;
+  unit_price: string;
+  qty: string;
+  line_total: string;
+  /** A path on the server ("/api/products/…"), or null. */
+  thumb: string | null;
+}
+
+export type WebOrderEventKind =
+  | "CREATED"
+  | "DEPOSIT_SUBMITTED"
+  | "DEPOSIT_CONFIRMED"
+  | "DEPOSIT_REJECTED"
+  | "STATUS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "REFUNDED"
+  | "NOTE";
+
+export interface WebOrderEvent {
+  id: number;
+  kind: WebOrderEventKind;
+  /** "customer", "system", or a staff username. */
+  actor: string;
+  /** Shown to the customer on their tracking page. */
+  public: boolean;
+  message: string;
+  data: Record<string, unknown>;
+  at: string;
+}
+
+export interface WebOrderDetail extends WebOrder {
+  deposit: WebOrder["deposit"] & { has_proof: boolean };
+  items: WebOrderItem[];
+  tracking_url: string;
+  events: WebOrderEvent[];
+  shortages: { product_id: number; name: string; needed: string; free: string; missing: boolean }[];
+  /** Other orders that quoted the same transfer reference. */
+  duplicate_reference: string[];
+  history: { orders: number; completed: number; cancelled: number };
+}
+
+export interface WebOrderBoard {
+  orders: WebOrder[];
+  summary: {
+    counts: Partial<Record<WebOrderStatus, number>>;
+    orders_today: number;
+    deposits_today: string;
+    completed_today: number;
+    sales_today: string;
+    open_value: string;
+    refunds_due: number;
+    refunds_due_amount: string;
+  };
+  server_time: string;
+}
+
+export interface WebOrderPage {
+  results: WebOrder[];
+  count: number;
+  page: number;
+  pages: number;
+}
+
+export interface WebPriceChange {
+  product_id: number;
+  name: string;
+  quantity: string;
+  quoted_price: string;
+  current_price: string;
+  quoted_line: string;
+  current_line: string;
+}
+
+/** What ringing a website order up would look like right now. */
+export interface WebSalePlan {
+  changes: WebPriceChange[];
+  total: string;
+  quoted_total: string;
+  current_total: string;
+  honoured_total: string;
+  deposit_applied: string;
+  balance: string;
+  delivery_fee_due: string;
+  to_collect: string;
+}

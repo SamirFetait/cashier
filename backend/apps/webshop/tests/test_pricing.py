@@ -87,7 +87,7 @@ class MoneyRuleTests(SimpleTestCase):
 
 
 class QuoteTests(ShopTestCase):
-    def quote(self, items, fulfilment="PICKUP"):
+    def quote(self, items, fulfilment="DELIVERY"):
         return pricing.build_quote(items, fulfilment)
 
     def test_prices_come_from_the_cashier(self):
@@ -145,9 +145,15 @@ class QuoteTests(ShopTestCase):
         self.shop_settings(ordering_enabled=False)
         self.assertIn("ORDERING_DISABLED", self.quote([{"id": self.honey.pk, "qty": 2}], "DELIVERY").problems)
 
-    def test_no_instapay_details_means_no_ordering(self):
+    def test_no_instapay_details_means_no_delivery_ordering(self):
         self.shop_settings(instapay_address="")
         self.assertIn("INSTAPAY_NOT_CONFIGURED", self.quote([{"id": self.honey.pk, "qty": 1}]).problems)
+        pickup = self.quote([{"id": self.honey.pk, "qty": 1}], "PICKUP")
+        self.assertTrue(pickup.ok, pickup.problems)
+
+    def test_pickup_takes_no_deposit(self):
+        quote = self.quote([{"id": self.honey.pk, "qty": 2}], "PICKUP")
+        self.assertEqual((quote.total, quote.deposit, quote.balance), (D("500.00"), D("0.00"), D("500.00")))
 
     def test_open_web_orders_hold_stock_back(self):
         self.place_ok([{"id": self.dates.pk, "qty": 3}])       # 4 in stock, 3 reserved

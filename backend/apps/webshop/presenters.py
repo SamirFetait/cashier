@@ -78,12 +78,30 @@ def video_json(video: ShopVideo) -> dict:
     }
 
 
-def ordering_state(settings: ShopSettings) -> dict:
+def _fulfilment_state(settings: ShopSettings, fulfilment: str) -> dict:
+    offered = settings.delivery_enabled if fulfilment == WebOrder.Fulfilment.DELIVERY else settings.pickup_enabled
     if not settings.ordering_enabled:
         return {"enabled": False, "reason": "DISABLED"}
-    if not settings.instapay_ready:
+    if not offered:
+        return {"enabled": False, "reason": "FULFILMENT_UNAVAILABLE"}
+    if pricing.takes_deposit(fulfilment) and not settings.instapay_ready:
         return {"enabled": False, "reason": "INSTAPAY_NOT_CONFIGURED"}
     return {"enabled": True, "reason": ""}
+
+
+def ordering_state(settings: ShopSettings) -> dict:
+    """Whether the site takes orders, for each way of getting them. Delivery
+    waits for InstaPay; pickup needs no payment details, so it can be open
+    while delivery is not. The top level says whether either one is."""
+    delivery = _fulfilment_state(settings, WebOrder.Fulfilment.DELIVERY)
+    pickup = _fulfilment_state(settings, WebOrder.Fulfilment.PICKUP)
+    if not settings.ordering_enabled:
+        overall = {"enabled": False, "reason": "DISABLED"}
+    elif delivery["enabled"] or pickup["enabled"]:
+        overall = {"enabled": True, "reason": ""}
+    else:
+        overall = {"enabled": False, "reason": "INSTAPAY_NOT_CONFIGURED"}
+    return {**overall, "delivery": delivery, "pickup": pickup}
 
 
 def config_json(settings: ShopSettings) -> dict:
@@ -221,6 +239,8 @@ def _has_proof(order: WebOrder) -> bool:
 
 def public_order_json(order: WebOrder, *, with_token: bool = False) -> dict:
     """What the customer sees on the tracking page."""
+    from . import services  # late: services imports this module
+
     settings = ShopSettings.load()
     awaiting = order.status in (WebOrder.Status.AWAITING_DEPOSIT, WebOrder.Status.EXPIRED)
     sale = order.sale
@@ -257,6 +277,7 @@ def public_order_json(order: WebOrder, *, with_token: bool = False) -> dict:
             for e in order.events.all() if e.public
         ],
         "cancel_reason": order.cancel_reason,
+        "can_cancel": services.customer_can_cancel(order),
         "refund": {"status": order.refund_status, "amount": m(order.refund_amount)},
         "receipt_number": sale.receipt_number if sale else "",
         "final_total": m(sale.total + order.delivery_fee) if sale else None,

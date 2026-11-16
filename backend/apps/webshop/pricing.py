@@ -32,9 +32,16 @@ def line_total(price: Decimal, quantity: Decimal) -> Decimal:
     return (price * quantity).quantize(MONEY)
 
 
+def takes_deposit(fulfilment: str) -> bool:
+    """Only delivery is paid for up front. A pickup order is accepted at once
+    and paid in full at the counter, so it needs no InstaPay at all."""
+    return fulfilment == WebOrder.Fulfilment.DELIVERY
+
+
 def deposit_for(subtotal: Decimal, settings: ShopSettings) -> Decimal:
-    """The deposit: a share of the goods, rounded up to a whole pound (nobody
-    transfers piastres), at least the minimum, never more than the goods."""
+    """The deposit on a delivery: a share of the goods, rounded up to a whole
+    pound (nobody transfers piastres), at least the minimum, never more than
+    the goods."""
     share = (subtotal * settings.deposit_percent / Decimal(100)).quantize(
         POUND, rounding=ROUND_CEILING
     )
@@ -106,10 +113,12 @@ class Quote:
     subtotal: Decimal = ZERO
     delivery_fee: Decimal = ZERO
     total: Decimal = ZERO
+    # Always zero for pickup.
     deposit: Decimal = ZERO
     balance: Decimal = ZERO
     # Reasons the cart as a whole cannot be ordered: EMPTY, ORDERING_DISABLED,
-    # INSTAPAY_NOT_CONFIGURED, FULFILMENT_UNAVAILABLE, MIN_ORDER, LINE_ISSUES.
+    # INSTAPAY_NOT_CONFIGURED (delivery only), FULFILMENT_UNAVAILABLE,
+    # MIN_ORDER, LINE_ISSUES.
     problems: list[str] = field(default_factory=list)
 
     @property
@@ -223,12 +232,12 @@ def build_quote(raw_items, fulfilment: str | None, settings: ShopSettings | None
     quote.subtotal = sum((l.line_total for l in quote.lines if not l.issue), ZERO).quantize(MONEY)
     quote.delivery_fee = delivery_fee_for(quote.subtotal, fulfilment, settings)
     quote.total = quote.subtotal + quote.delivery_fee
-    quote.deposit = deposit_for(quote.subtotal, settings)
+    quote.deposit = deposit_for(quote.subtotal, settings) if takes_deposit(fulfilment) else ZERO
     quote.balance = quote.total - quote.deposit
 
     if not settings.ordering_enabled:
         quote.problems.append("ORDERING_DISABLED")
-    elif not settings.instapay_ready:
+    elif takes_deposit(fulfilment) and not settings.instapay_ready:
         quote.problems.append("INSTAPAY_NOT_CONFIGURED")
     if not quote.lines:
         quote.problems.append("EMPTY")
