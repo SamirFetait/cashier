@@ -13,7 +13,9 @@ from django.utils import timezone
 from apps.products.models import ProductImage
 
 from . import catalog, phones, pricing
-from .models import DepositProof, Listing, ShopSettings, ShopVideo, StoredImage, WebOrder
+from .models import (
+    DepositProof, EventMedia, HealthySwap, Listing, ShopEvent, ShopSettings, ShopVideo, StoredImage, WebOrder,
+)
 
 MONEY = Decimal("0.01")
 QTY = Decimal("0.001")
@@ -136,6 +138,103 @@ def config_json(settings: ShopSettings) -> dict:
             "hero": video_json(hero) if hero else None,
             "stories": [video_json(v) for v in videos if v.placement == ShopVideo.Placement.STORY],
         },
+        "swaps": swaps_json(),
+    }
+
+
+# --- Health: nutrition facts and healthy swaps ----------------------------------
+
+
+def _n(value) -> str | None:
+    return None if value is None else format(Decimal(value).quantize(Decimal("0.1")).normalize(), "f")
+
+
+def nutrition_json(listing: Listing | None) -> dict | None:
+    """Per 100 g (or 100 ml), as on the label. None until calories are in."""
+    if listing is None or not listing.has_nutrition:
+        return None
+    data = {name: _n(getattr(listing, name)) for name in Listing.NUTRIENTS}
+    data["piece_grams"] = _n(listing.piece_grams)
+    return data
+
+
+def swaps_json() -> list[dict]:
+    """Active swaps, each with the products the website can show: hidden and
+    inactive ones are left out here, sold-out ones by the site itself."""
+    hidden = pricing.hidden_product_ids()
+    out = []
+    for swap in HealthySwap.objects.filter(is_active=True).prefetch_related("products"):
+        out.append({
+            "id": swap.pk,
+            "craving": swap.craving,
+            "emoji": swap.emoji,
+            "reason": swap.reason,
+            "product_ids": [p.pk for p in swap.products.all() if p.is_active and p.pk not in hidden],
+        })
+    return out
+
+
+# --- Events --------------------------------------------------------------------
+
+
+def event_media_json(item: EventMedia) -> dict:
+    return {
+        "id": item.pk,
+        "kind": item.kind,
+        "src": item.file.url,
+        "poster": item.poster.url if item.poster else None,
+        "content_type": item.content_type,
+        "width": item.width,
+        "height": item.height,
+        "duration": item.duration,
+    }
+
+
+def event_json(event: ShopEvent) -> dict:
+    media = [event_media_json(m) for m in event.media.all()]
+    # The cover: the first photo, else the first video's still frame.
+    cover = next((m["src"] for m in media if m["kind"] == EventMedia.Kind.PHOTO), None) or next(
+        (m["poster"] for m in media if m["poster"]), None
+    )
+    return {
+        "id": event.pk,
+        "title": event.title,
+        "description": event.description,
+        "starts_at": iso(event.starts_at),
+        "ends_at": iso(event.ends_at),
+        "place": event.place,
+        "cover": cover,
+        "media": media,
+    }
+
+
+def admin_event_json(event: ShopEvent) -> dict:
+    data = event_json(event)
+    data.update({
+        "is_published": event.is_published,
+        "created_by": _user(event.created_by),
+        "created_at": iso(event.created_at),
+        "media": [
+            {**event_media_json(m), "size": m.size, "sort": m.sort} for m in event.media.all()
+        ],
+    })
+    return data
+
+
+def admin_swap_json(swap: HealthySwap, versions: dict[int, str] | None = None) -> dict:
+    products = list(swap.products.all())
+    versions = versions if versions is not None else image_versions(p.pk for p in products)
+    return {
+        "id": swap.pk,
+        "craving": swap.craving,
+        "emoji": swap.emoji,
+        "reason": swap.reason,
+        "sort": swap.sort,
+        "is_active": swap.is_active,
+        "products": [
+            {"id": p.pk, "name": p.name, "is_active": p.is_active, "thumb": image_urls(p.pk, versions.get(p.pk, ""))[1]}
+            for p in products
+        ],
     }
 
 
@@ -164,6 +263,7 @@ def catalog_json() -> dict:
             "featured": bool(listing and listing.featured),
             "badge": listing.badge if listing else "",
             "description": listing.description if listing else "",
+            "nutrition": nutrition_json(listing),
         })
         if info.category_id:
             counts[info.category_id] = counts.get(info.category_id, 0) + 1

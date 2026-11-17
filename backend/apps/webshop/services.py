@@ -13,8 +13,9 @@ manager PIN and audit log all behave exactly as for a sale at the till.
 """
 import logging
 import secrets
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from django.conf import settings as django_settings
 from django.core.cache import cache
@@ -47,6 +48,12 @@ BALANCE_METHODS = ("CASH", "MOBILE", "CARD")
 
 Status = WebOrder.Status
 Kind = WebOrderEvent.Kind
+
+
+def start_of_today() -> datetime:
+    """Midnight in the shop's own time zone (the cashier runs on UTC)."""
+    zone = ZoneInfo(getattr(django_settings, "SHOP_TIME_ZONE", "Africa/Cairo"))
+    return datetime.combine(timezone.now().astimezone(zone).date(), time.min, tzinfo=zone)
 
 
 def new_code() -> str:

@@ -17,6 +17,13 @@ from apps.common.fields import money_field, quantity_field
 ZERO = Decimal("0.00")
 
 
+def nutrition_field(help_text: str) -> models.DecimalField:
+    return models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0"))], help_text=help_text,
+    )
+
+
 class ShopSettings(models.Model):
     """One row (pk=1) of settings edited from the orders admin."""
 
@@ -293,7 +300,29 @@ class Listing(models.Model):
     featured = models.BooleanField(default=False)
     badge = models.CharField(max_length=40, blank=True)
     description = models.CharField(max_length=600, blank=True)
+
+    # --- Nutrition facts per 100 g (or 100 ml), as printed on the label ---
+    # A product shows them once its calories are filled in.
+    kcal = nutrition_field("Calories (kcal) per 100 g")
+    protein = nutrition_field("Protein (g) per 100 g")
+    carbs = nutrition_field("Carbohydrates (g) per 100 g")
+    sugar = nutrition_field("Of which sugars (g) per 100 g")
+    fat = nutrition_field("Fat (g) per 100 g")
+    fiber = nutrition_field("Fibre (g) per 100 g")
+    # For a product sold by the piece: how much one piece weighs, so a cart
+    # can count what a whole jar or pack holds.
+    piece_grams = models.DecimalField(
+        max_digits=8, decimal_places=1, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.1"))],
+        help_text="Weight of one piece in grams (products sold by the piece)",
+    )
     updated_at = models.DateTimeField(auto_now=True)
+
+    NUTRIENTS = ("kcal", "protein", "carbs", "sugar", "fat", "fiber")
+
+    @property
+    def has_nutrition(self) -> bool:
+        return self.kcal is not None
 
 
 class ShopVideo(models.Model):
@@ -331,3 +360,74 @@ class ShopVideo(models.Model):
 
     def __str__(self) -> str:
         return self.title or f"Video #{self.pk}"
+
+
+class ShopEvent(models.Model):
+    """A public event at (or by) the shop, written in the orders admin: a
+    tasting, a workshop, a market stall. Shown on the website, no booking."""
+
+    title = models.CharField(max_length=160)
+    description = models.TextField(blank=True)
+    starts_at = models.DateTimeField(db_index=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    # Empty means at the shop itself.
+    place = models.CharField(max_length=200, blank=True)
+    is_published = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-starts_at", "-id"]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class EventMedia(models.Model):
+    """A photo or short video of an event, in the order staff set. Files live
+    under MEDIA_ROOT/events/ and are served by media.serve_media."""
+
+    class Kind(models.TextChoices):
+        PHOTO = "PHOTO", "Photo"
+        VIDEO = "VIDEO", "Video"
+
+    MAX_PER_EVENT = 20
+
+    event = models.ForeignKey(ShopEvent, on_delete=models.CASCADE, related_name="media")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    file = models.FileField(upload_to="events/")
+    # A video's still frame, made in the browser when it was uploaded.
+    poster = models.FileField(upload_to="events/", blank=True)
+    content_type = models.CharField(max_length=40)
+    size = models.PositiveBigIntegerField(default=0)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    duration = models.FloatField(null=True, blank=True)
+    sort = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sort", "id"]
+
+
+class HealthySwap(models.Model):
+    """A craving and the healthier products from the shop that answer it,
+    for the website's swap finder."""
+
+    craving = models.CharField(max_length=80)
+    emoji = models.CharField(max_length=16, blank=True)
+    reason = models.CharField(max_length=500, blank=True)
+    products = models.ManyToManyField("products.Product", blank=True, related_name="+")
+    sort = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort", "id"]
+
+    def __str__(self) -> str:
+        return self.craving

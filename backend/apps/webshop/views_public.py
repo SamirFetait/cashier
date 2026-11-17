@@ -3,6 +3,7 @@ an order. No login: a customer proves an order is theirs with the secret
 token in their tracking link."""
 import secrets
 
+from django.db.models import Q
 from django.http import Http404, HttpResponse, HttpResponseNotModified
 from django.utils import timezone
 from rest_framework import serializers
@@ -12,8 +13,8 @@ from rest_framework.response import Response
 from . import phones, pricing, services
 from .errors import ShopError, ShopView
 from .images import MAX_UPLOAD_BYTES, InvalidImage, process_photo
-from .models import ShopSettings, StoredImage, WebOrder
-from .presenters import catalog_json, config_json, public_order_json, quote_json
+from .models import ShopEvent, ShopSettings, StoredImage, WebOrder
+from .presenters import catalog_json, config_json, event_json, public_order_json, quote_json
 from .throttles import DepositThrottle, LookupThrottle, OrderCreateThrottle, QuoteThrottle, client_ip
 
 # A versioned URL names one exact picture, so it can be cached for good.
@@ -62,6 +63,25 @@ class InstapayQrView(PublicView):
         response["ETag"] = etag
         response["Cache-Control"] = IMMUTABLE if request.query_params.get("v") == version else "no-cache"
         return response
+
+
+class EventsView(PublicView):
+    """Published events: those still to come or on today (soonest first),
+    then the latest past ones, whose photos are worth keeping up."""
+
+    PAST_SHOWN = 6
+
+    def get(self, request):
+        today = services.start_of_today()
+        events = ShopEvent.objects.filter(is_published=True).prefetch_related("media")
+        # An event without an end is shown as current for the whole of its day.
+        current = Q(ends_at__gte=today) | Q(ends_at__isnull=True, starts_at__gte=today)
+        upcoming = events.filter(current).order_by("starts_at", "id")
+        past = events.exclude(current).order_by("-starts_at", "-id")[: self.PAST_SHOWN]
+        return Response({
+            "upcoming": [event_json(e) for e in upcoming],
+            "past": [event_json(e) for e in past],
+        })
 
 
 class QuoteView(PublicView):

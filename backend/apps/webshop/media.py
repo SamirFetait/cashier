@@ -69,9 +69,27 @@ def store_video(video, upload, content_type: str, poster: ProcessedImage | None)
 
 
 def delete_files(video) -> None:
+    """Remove a video's (or event media item's) files from disk."""
     for stored in (video.file, video.poster):
         if stored:
             stored.delete(save=False)
+
+
+def store_event_photo(item, photo: ProcessedImage) -> None:
+    """An event photo, already re-encoded as JPEG, saved under a random name."""
+    item.content_type = photo.content_type
+    item.size = len(photo.data)
+    item.width, item.height = photo.width, photo.height
+    item.file.save(f"{uuid.uuid4().hex}.jpg", ContentFile(photo.data), save=False)
+
+
+def is_video(upload) -> bool:
+    """Whether the upload's first bytes say it is a video container."""
+    try:
+        sniff_video(upload)
+        return True
+    except InvalidVideo:
+        return False
 
 
 def _file_chunks(path: str, start: int, length: int):
@@ -86,15 +104,21 @@ def _file_chunks(path: str, start: int, length: int):
             yield chunk
 
 
+# The upload folders that are public: storefront videos, and event photos
+# and videos.
+SERVED_FOLDERS = ("videos", "events")
+
+
 @require_http_methods(["GET", "HEAD"])
 def serve_media(request, path: str):
-    # Only the uploads folder is served, and safe_join refuses any path that
-    # climbs back out of it (videos/../something).
-    if not path.startswith("videos/"):
+    # Only the upload folders are served, and safe_join refuses any path that
+    # climbs back out of one (videos/../something).
+    folder, _, rest = path.partition("/")
+    if folder not in SERVED_FOLDERS or not rest:
         raise Http404
     try:
-        uploads = safe_join(str(settings.MEDIA_ROOT), "videos")
-        full = safe_join(uploads, path[len("videos/"):])
+        uploads = safe_join(str(settings.MEDIA_ROOT), folder)
+        full = safe_join(uploads, rest)
     except Exception:
         raise Http404
     content_type = SERVED_TYPES.get(Path(full).suffix.lower())
