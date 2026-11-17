@@ -1,0 +1,22 @@
+<svg viewBox="0 -8 64 60" aria-hidden="true" focusable="false">
+  <g transform="rotate(-30 24 20)"><ellipse class="nf__wing" cx="24" cy="7.5" rx="8" ry="12.5"/></g>
+  <path d="M9.5 28.5 1.5 31.5l8 3z" fill="#3e2005"/>
+  <ellipse cx="27" cy="31" rx="19" ry="14" fill="url(#nf-coat)"/>
+  <g clip-path="url(#nf-body)" fill="#3e2005">
+    <rect x="12" y="15" width="4.5" height="34" rx="2"/>
+    <rect x="20.5" y="15" width="6" height="34" rx="2"/>
+    <rect x="30.5" y="15" width="6" height="34" rx="2"/>
+  </g>
+  <ellipse cx="23" cy="23.5" rx="8" ry="3" fill="#fff" fill-opacity="0.4"/>
+  <path d="M19 44.5 17 49.5M28 45.5v5M36 43.5l2 5" stroke="#3e2005" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M43 17.5C42 11.5 39 7.5 35 5.5M50.5 16.5C52.5 10.5 55.5 7.5 59 6.5" fill="none" stroke="#3e2005" stroke-width="1.7" stroke-linecap="round"/>
+  <circle cx="35" cy="5.5" r="2.1" fill="#3e2005"/>
+  <circle cx="59" cy="6.5" r="2.1" fill="#3e2005"/>
+  <circle cx="47" cy="27" r="11.5" fill="#3e2005"/>
+  <circle cx="51" cy="24" r="4.6" fill="#fff"/>
+  <circle cx="52.4" cy="24.6" r="2.5" fill="#1b2420"/>
+  <circle cx="53.3" cy="23.4" r="0.9" fill="#fff"/>
+  <ellipse cx="54.5" cy="30.5" rx="2.3" ry="1.4" fill="#ff8f7a" fill-opacity="0.75"/>
+  <path d="M47.5 31.4q2.6 2.6 5.6.6" fill="none" stroke="#f6dc9f" stroke-width="1.4" stroke-linecap="round"/>
+  <g transform="rotate(-10 33 19)"><ellipse class="nf__wing nf__wing--front" cx="33" cy="6.5" rx="8.5" ry="13"/></g>
+</svg>

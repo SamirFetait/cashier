@@ -65,3 +65,7 @@ urlpatterns = [
     # Website videos (apps.webshop), streamed with byte ranges.
     path("media/<path:path>", serve_media),
 ]
+
+# An address the server does not have: JSON for the API, the lost-bee page
+# for people (with DEBUG off; DEBUG shows Django's own page).
+handler404 = "apps.common.views.not_found"

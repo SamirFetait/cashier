@@ -1,0 +1,943 @@
+<!doctype html>
+{% comment %}
+  The server's 404 for people (apps/common/views.py: not_found). The same
+  lost bee as the website's 404 (fatheet-kheer: shared/NotFound.tsx and
+  shared/lostBee.ts): it looks around the 404 for the page, gives up and flies
+  off. Everything is inline, so the page needs no static files. Without
+  JavaScript, or with reduced motion, the bee sits on the honey cell instead.
+{% endcomment %}
+<html lang="{{ lang }}" dir="{{ dir }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#013f39">
+<title>{{ t.page_title }}</title>
+<style>
+  :root {
+    --teal-3: #77dccb;
+    --teal-9: #013f39;
+    --gold-1: #fbe9c0;
+    --gold-2: #f6dc9f;
+    --gold-3: #f1cf7b;
+    --gold-4: #ecc152;
+    --gold-5: #ebac4c;
+    --gold-6: #e6984e;
+    --wood-9: #3e2005;
+    --hexagon: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+    --hex-ratio: 1.1547;
+    --trail: var(--gold-3);
+    color-scheme: dark;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    background: var(--teal-9);
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, system-ui, -apple-system, 'Noto Sans Arabic', sans-serif;
+    line-height: 1.65;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  p {
+    margin: 0;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  svg {
+    display: block;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--gold-5);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  .nf {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background:
+      radial-gradient(70rem 36rem at 82% 4%, rgba(40, 188, 176, 0.42), transparent 62%),
+      radial-gradient(40rem 26rem at 8% 100%, rgba(236, 193, 82, 0.16), transparent 62%),
+      linear-gradient(160deg, #012e2a 0%, #013f39 30%, #01564e 62%, #0a766b 100%);
+  }
+
+  .nf__defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  .nf__grid {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='52'%3E%3Cpath d='M0 26 15 0h30l15 26-15 26H15zM60 26h30' fill='none' stroke='%23ecc152' stroke-opacity='.2'/%3E%3C/svg%3E");
+    background-size: 90px 52px;
+    -webkit-mask-image: radial-gradient(60% 70% at 50% 45%, #000 10%, transparent 80%);
+    mask-image: radial-gradient(60% 70% at 50% 45%, #000 10%, transparent 80%);
+  }
+
+  .nf__top {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: min(1180px, 100% - 2.5rem);
+    margin: 0 auto;
+    padding: 1rem 0;
+  }
+
+  .nf__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .nf__brand svg {
+    width: 42px;
+    height: auto;
+  }
+
+  .nf__brand strong {
+    display: block;
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .nf__brand small {
+    display: block;
+    font-size: 0.74rem;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .nf__lang {
+    padding: 0.35rem 0.95rem;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-weight: 600;
+  }
+
+  .nf__lang:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .nf__inner {
+    position: relative;
+    z-index: 1;
+    align-self: center;
+    justify-self: center;
+    display: grid;
+    justify-items: center;
+    width: min(40rem, 100% - 2.5rem);
+    padding: 1rem 0 4.5rem;
+    text-align: center;
+  }
+
+  .nf__code {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.05em;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(6rem, 24vw, 12rem);
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
+  }
+
+  .nf__code::before {
+    content: '';
+    position: absolute;
+    inset: -22% -8%;
+    z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(236, 193, 82, 0.4), rgba(67, 208, 189, 0.18) 58%, transparent 76%);
+    filter: blur(8px);
+    animation: nf-glow 7s ease-in-out infinite;
+  }
+
+  .nf__digit {
+    background: linear-gradient(170deg, var(--gold-1), var(--gold-4) 45%, var(--gold-6));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.35));
+  }
+
+  .nf__cell {
+    position: relative;
+    flex: none;
+    width: 0.9em;
+    filter: drop-shadow(0 16px 22px rgba(1, 40, 36, 0.28));
+  }
+
+  .nf__cell > svg,
+  .nf__bee svg,
+  .nf__perched svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .nf__wave {
+    animation: nf-wave 3.2s linear infinite;
+  }
+
+  .nf__wave--back {
+    animation-duration: 4.8s;
+    animation-direction: reverse;
+  }
+
+  .nf__bubble {
+    opacity: 0;
+    animation: nf-bubble 3.6s ease-in infinite;
+  }
+
+  .nf__drip {
+    transform-box: fill-box;
+    transform-origin: 50% 0;
+    animation: nf-drip 4.2s ease-in infinite;
+  }
+
+  .nf__drip--small {
+    animation-duration: 5.6s;
+    animation-delay: -2.4s;
+  }
+
+  .nf__title {
+    margin-top: clamp(1.25rem, 3.5vw, 2rem);
+    font-size: clamp(1.9rem, 4.6vw, 3rem);
+    line-height: 1.25;
+  }
+
+  .nf__text {
+    max-width: 34rem;
+    margin-top: 0.75rem;
+    font-size: clamp(1rem, 1.4vw, 1.12rem);
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  .nf__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+  }
+
+  .nf__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 54px;
+    padding: 0 1.7rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--gold-3), var(--gold-5) 55%, var(--gold-6));
+    color: var(--wood-9);
+    font-size: 1.05rem;
+    font-weight: 700;
+    box-shadow: 0 10px 24px -12px rgba(230, 152, 78, 0.95);
+    transition: filter 0.16s, transform 0.16s;
+  }
+
+  .nf__btn:hover {
+    filter: brightness(1.05) saturate(1.05);
+  }
+
+  .nf__btn:active {
+    transform: translateY(1px) scale(0.985);
+  }
+
+  [dir='rtl'] .nf__btn svg {
+    transform: scaleX(-1);
+  }
+
+  /* Without JavaScript the bee sits on the cell; flying, it has the stage. */
+  .nf__stage,
+  .nf__lost {
+    display: none;
+  }
+
+  .is-flying .nf__stage {
+    display: block;
+  }
+
+  .is-flying .nf__lost {
+    display: flex;
+  }
+
+  .is-flying .nf__perched {
+    display: none;
+  }
+
+  .nf__lost {
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem 0.75rem;
+    margin-top: 1.5rem;
+    font-size: 0.92rem;
+    color: rgba(255, 255, 255, 0.74);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.4s, transform 0.4s, visibility 0s 0.4s;
+  }
+
+  .nf__lost.is-shown {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.4s, transform 0.4s;
+  }
+
+  .nf__call {
+    min-height: 34px;
+    padding: 0 0.95rem;
+    border: 1.5px solid rgba(236, 193, 82, 0.6);
+    border-radius: 999px;
+    color: var(--gold-2);
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+
+  .nf__call:hover {
+    background: rgba(236, 193, 82, 0.16);
+  }
+
+  .nf__stage {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .nf__trail {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .nf__bee {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 64px;
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+
+  .nf__wing {
+    fill: rgba(229, 253, 248, 0.75);
+    stroke: var(--teal-3);
+    stroke-width: 1.1;
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: nf-flap 0.1s ease-in-out infinite alternate;
+  }
+
+  .nf__wing--front {
+    animation-delay: -0.05s;
+  }
+
+  .nf__perched {
+    position: absolute;
+    bottom: 84%;
+    left: 50%;
+    width: 0.42em;
+    transform: translateX(-50%);
+  }
+
+  .nf__thought {
+    position: absolute;
+    bottom: 88%;
+    left: 66%;
+    min-width: 1.9rem;
+    padding: 0.05rem 0.55rem;
+    border-radius: 999px 999px 999px 4px;
+    background: #fff;
+    color: var(--teal-9);
+    box-shadow: 0 4px 10px -4px rgba(62, 32, 5, 0.1), 0 14px 32px -12px rgba(62, 32, 5, 0.18);
+    font-family: 'Segoe UI', Tahoma, system-ui, -apple-system, 'Noto Sans Arabic', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.7;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(4px) scale(0.6);
+    transform-origin: 0 100%;
+    transition: opacity 0.18s, transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+  }
+
+  .nf__thought.is-shown {
+    opacity: 1;
+    transform: none;
+  }
+
+  .nf__pollen {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .nf__pollen span {
+    position: absolute;
+    bottom: -12px;
+    left: var(--x);
+    width: var(--size);
+    aspect-ratio: var(--hex-ratio);
+    clip-path: var(--hexagon);
+    background: var(--gold-4);
+    opacity: 0;
+    animation: nf-pollen var(--duration) linear var(--delay) infinite;
+  }
+
+  @media (max-width: 560px) {
+    .nf__bee {
+      width: 48px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  @keyframes nf-glow {
+    0%,
+    100% {
+      opacity: 0.75;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+  }
+
+  @keyframes nf-wave {
+    to {
+      transform: translateX(60px);
+    }
+  }
+
+  @keyframes nf-bubble {
+    0% {
+      opacity: 0;
+      transform: translateY(0);
+    }
+
+    25% {
+      opacity: 0.85;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+  }
+
+  @keyframes nf-drip {
+    0% {
+      transform: scale(0.3, 0);
+    }
+
+    45% {
+      transform: scale(1, 1);
+    }
+
+    60% {
+      opacity: 1;
+      transform: scale(0.85, 1.3);
+    }
+
+    74% {
+      opacity: 0.8;
+      transform: translateY(14px) scale(0.75, 1.15);
+    }
+
+    80%,
+    100% {
+      opacity: 0;
+      transform: translateY(20px) scale(0.6);
+    }
+  }
+
+  @keyframes nf-flap {
+    to {
+      transform: scaleY(0.3);
+    }
+  }
+
+  @keyframes nf-pollen {
+    0% {
+      opacity: 0;
+      transform: translateY(0) rotate(0deg);
+    }
+
+    12% {
+      opacity: 0.55;
+    }
+
+    80% {
+      opacity: 0.3;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translateY(-80vh) rotate(200deg);
+    }
+  }
+</style>
+</head>
+<body>
+<main class="nf">
+  <svg class="nf__defs" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="nf-frame" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#f6dc9f"/>
+        <stop offset="0.5" stop-color="#ebac4c"/>
+        <stop offset="1" stop-color="#b47538"/>
+      </linearGradient>
+      <linearGradient id="nf-hollow" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#016158"/>
+        <stop offset="1" stop-color="#013f39"/>
+      </linearGradient>
+      <linearGradient id="nf-honey" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f6c65e"/>
+        <stop offset="1" stop-color="#d9822f"/>
+      </linearGradient>
+      <pattern id="nf-comb" width="30" height="17.32" patternUnits="userSpaceOnUse">
+        <path d="M0 8.66 5 0h10l5 8.66-5 8.66H5zM20 8.66h10" fill="none" stroke="#ecc152" stroke-opacity="0.22" stroke-width="0.8"/>
+      </pattern>
+      <clipPath id="nf-inside">
+        <path d="M35.2 9.04h49.6l24.81 42.96-24.81 42.96H35.2L10.39 52z"/>
+      </clipPath>
+      <linearGradient id="nf-coat" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fbe9c0"/>
+        <stop offset="0.45" stop-color="#ecc152"/>
+        <stop offset="1" stop-color="#e6984e"/>
+      </linearGradient>
+      <clipPath id="nf-body">
+        <ellipse cx="27" cy="31" rx="19" ry="14"/>
+      </clipPath>
+    </defs>
+  </svg>
+
+  <div class="nf__grid" aria-hidden="true"></div>
+  <div class="nf__pollen" aria-hidden="true">
+    <span style="--x: 7%; --size: 7px; --duration: 11s; --delay: -2s"></span>
+    <span style="--x: 18%; --size: 5px; --duration: 14s; --delay: -9s"></span>
+    <span style="--x: 30%; --size: 9px; --duration: 12s; --delay: -5s"></span>
+    <span style="--x: 43%; --size: 6px; --duration: 16s; --delay: -12s"></span>
+    <span style="--x: 57%; --size: 8px; --duration: 13s; --delay: -3s"></span>
+    <span style="--x: 68%; --size: 5px; --duration: 10s; --delay: -7s"></span>
+    <span style="--x: 80%; --size: 7px; --duration: 15s; --delay: -1s"></span>
+    <span style="--x: 92%; --size: 6px; --duration: 12s; --delay: -10s"></span>
+  </div>
+
+  <header class="nf__top">
+    <span class="nf__brand">
+      <svg viewBox="0 0 120 104" aria-hidden="true" focusable="false">
+        <path d="M30 0h60l30 52-30 52H30L0 52z" fill="url(#nf-frame)"/>
+        <path d="M35.2 9.04h49.6l24.81 42.96-24.81 42.96H35.2L10.39 52z" fill="url(#nf-hollow)"/>
+        <rect y="64" width="120" height="40" fill="url(#nf-honey)" clip-path="url(#nf-inside)"/>
+      </svg>
+      <span>
+        <strong>{{ t.brand }}</strong>
+        <small>{{ t.brand_other }}</small>
+      </span>
+    </span>
+    <a class="nf__lang" href="?lang={{ other_lang }}" lang="{{ other_lang }}" hreflang="{{ other_lang }}">{{ t.switch }}</a>
+  </header>
+
+  <div class="nf__inner">
+    <div class="nf__code" dir="ltr" role="img" aria-label="404">
+      <span class="nf__digit">4</span>
+      <div class="nf__cell">
+        <svg viewBox="0 0 120 104" aria-hidden="true" focusable="false">
+          <path d="M30 0h60l30 52-30 52H30L0 52z" fill="url(#nf-frame)"/>
+          <path d="M35.2 9.04h49.6l24.81 42.96-24.81 42.96H35.2L10.39 52z" fill="url(#nf-hollow)"/>
+          <g clip-path="url(#nf-inside)">
+            <rect width="120" height="104" fill="url(#nf-comb)"/>
+            <path class="nf__wave nf__wave--back" fill="#c97a2e" fill-opacity="0.6" d="M-120 64q15-3.5 30 0q15 3.5 30 0q15-3.5 30 0q15 3.5 30 0q15-3.5 30 0q15 3.5 30 0q15-3.5 30 0q15 3.5 30 0q15-3.5 30 0q15 3.5 30 0q15-3.5 30 0q15 3.5 30 0V112H-120z"/>
+            <path class="nf__wave" fill="url(#nf-honey)" d="M-120 68q15-4 30 0q15 4 30 0q15-4 30 0q15 4 30 0q15-4 30 0q15 4 30 0q15-4 30 0q15 4 30 0q15-4 30 0q15 4 30 0q15-4 30 0q15 4 30 0V112H-120z"/>
+            <circle class="nf__bubble" cx="46" cy="90" r="1.6" fill="#fff6e2"/>
+            <circle class="nf__bubble" cx="63" cy="92" r="1.2" fill="#fff6e2" style="animation-delay: -1.3s"/>
+            <circle class="nf__bubble" cx="77" cy="88" r="1.4" fill="#fff6e2" style="animation-delay: -2.4s"/>
+          </g>
+          <path d="M29 10.5 15.5 34M38 4.5h11" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="2.4" stroke-linecap="round"/>
+          <ellipse cx="53" cy="104" rx="6.5" ry="2.4" fill="#e39a3f"/>
+          <ellipse cx="77" cy="103.8" rx="4.4" ry="1.9" fill="#e39a3f"/>
+          <path class="nf__drip" fill="#e39a3f" d="M53 104s-4 5.6-4 8.6a4 4 0 0 0 8 0c0-3-4-8.6-4-8.6z"/>
+          <path class="nf__drip nf__drip--small" fill="#e39a3f" d="M77 103.5s-2.8 3.9-2.8 6a2.8 2.8 0 0 0 5.6 0c0-2.1-2.8-6-2.8-6z"/>
+        </svg>
+        <div class="nf__perched" aria-hidden="true">
+          {% include "common/not_found_bee.svg" %}
+          <span class="nf__thought is-shown" dir="auto">{{ t.give_up }}</span>
+        </div>
+      </div>
+      <span class="nf__digit">4</span>
+    </div>
+
+    <h1 class="nf__title">{{ t.title }}</h1>
+    <p class="nf__text">{{ t.text }}</p>
+    {% if shop_url %}
+      <div class="nf__actions">
+        <a class="nf__btn" href="{{ shop_url }}">
+          {{ t.shop }}
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    {% endif %}
+    <p class="nf__lost">
+      {{ t.lost }}
+      <button type="button" class="nf__call">{{ t.call_back }}</button>
+    </p>
+  </div>
+
+  <div class="nf__stage" dir="ltr" aria-hidden="true">
+    <canvas class="nf__trail"></canvas>
+    <div class="nf__bee">
+      <div class="nf__bee-body">{% include "common/not_found_bee.svg" %}</div>
+      <span class="nf__thought" dir="auto"></span>
+    </div>
+  </div>
+</main>
+
+{{ bee_words|json_script:"nf-words" }}
+<script>
+  // The bee's flight: a port of the website's shared/lostBee.ts. It flies in,
+  // stops to think at a few places around the 404 (the second over the empty
+  // cell), spins once, puzzled, and flies off for good, leaving a dotted
+  // trail that fades. It keeps clear of the pointer.
+  (function () {
+    'use strict';
+    var STOPS = 3;
+    var CRUISE = 300;
+    var ESCAPE = 480;
+    var TURN = 4.5;
+    var BRAKE_WITHIN = 110;
+    var THINK_MS = 700;
+    var THINK_SPREAD_MS = 400;
+    var SPIN_MS = 1500;
+    var SPIN_RADIUS = 44;
+    var LEAVE_MAX_MS = 6000;
+    var SHY_WITHIN = 120;
+    var TRAIL_STEP = 11;
+    var TRAIL_MS = 2300;
+
+    function clamp(value, low, high) {
+      return Math.min(high, Math.max(low, value));
+    }
+
+    function fly(parts, onGone) {
+      var stage = parts.stage;
+      var bee = parts.bee;
+      var context = parts.trail.getContext('2d');
+      var trailColour = getComputedStyle(stage).getPropertyValue('--trail').trim() || '#f1cf7b';
+      var half = { x: bee.offsetWidth / 2, y: bee.offsetHeight / 2 };
+      var width = 0;
+      var height = 0;
+
+      function resize() {
+        var ratio = Math.min(window.devicePixelRatio || 1, 2);
+        width = stage.clientWidth;
+        height = stage.clientHeight;
+        parts.trail.width = Math.round(width * ratio);
+        parts.trail.height = Math.round(height * ratio);
+        if (context) context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+      resize();
+
+      function placeOf(element) {
+        var outer = stage.getBoundingClientRect();
+        var box = element.getBoundingClientRect();
+        return { left: box.left - outer.left, top: box.top - outer.top, width: box.width, height: box.height };
+      }
+
+      function nextStop(from, index) {
+        var box;
+        if (index === 1) {
+          box = placeOf(parts.cell);
+          return { x: box.left + box.width / 2, y: box.top - half.y * 0.35 };
+        }
+        box = placeOf(parts.area);
+        var best = from;
+        var bestDistance = -1;
+        for (var attempt = 0; attempt < 10; attempt += 1) {
+          var point = {
+            x: clamp(box.left - box.width * 0.1 + Math.random() * box.width * 1.2, half.x + 8, width - half.x - 8),
+            y: clamp(box.top - box.height * 0.5 + Math.random() * box.height * 1.3, half.y + 28, height - half.y - 8),
+          };
+          var distance = Math.hypot(point.x - from.x, point.y - from.y);
+          if (distance > Math.min(200, box.width * 0.45)) return point;
+          if (distance > bestDistance) {
+            best = point;
+            bestDistance = distance;
+          }
+        }
+        return best;
+      }
+
+      var fromLeft = Math.random() < 0.5;
+      var position = { x: fromLeft ? -half.x * 2 : width + half.x * 2, y: height * (0.12 + Math.random() * 0.3) };
+      var velocity = { x: fromLeft ? CRUISE : -CRUISE, y: 0 };
+      var phase = 'search';
+      var stops = 0;
+      var goal = nextStop(position, 0);
+      var thinkUntil = 0;
+      var spinCentre = position;
+      var spinStart = 0;
+      var leaveFrom = position;
+      var leaveStart = 0;
+      var leaveProgress = 0;
+      var facing = fromLeft ? 1 : -1;
+      var tilt = 0;
+      var scale = 1;
+      var opacity = 1;
+      var said = '';
+      var pointer = null;
+      var lastDot = null;
+      var dots = [];
+
+      function say(text) {
+        if (text === said) return;
+        said = text;
+        if (text) parts.thought.textContent = text;
+        parts.thought.classList.toggle('is-shown', text !== '');
+      }
+
+      function step(now, dt) {
+        var target = goal;
+        var cruise = CRUISE;
+        var turn = TURN;
+        if (phase === 'spin') {
+          var angle = -Math.PI / 2 + ((now - spinStart) / SPIN_MS) * Math.PI * 2 + 0.7;
+          target = { x: spinCentre.x + Math.cos(angle) * SPIN_RADIUS, y: spinCentre.y + Math.sin(angle) * SPIN_RADIUS };
+          cruise = ((Math.PI * 2 * SPIN_RADIUS) / (SPIN_MS / 1000)) * 1.15;
+          turn = 9;
+        } else if (phase === 'leave') {
+          cruise = ESCAPE;
+          turn = 3;
+        }
+
+        var toX = target.x - position.x;
+        var toY = target.y - position.y;
+        var distance = Math.hypot(toX, toY);
+        var braking = phase === 'search' || phase === 'think';
+        var speed = braking ? cruise * Math.min(1, distance / BRAKE_WITHIN) : cruise;
+        var wantX = distance > 0.5 ? (toX / distance) * speed : 0;
+        var wantY = distance > 0.5 ? (toY / distance) * speed : 0;
+        var k = Math.min(1, turn * dt);
+        velocity.x += (wantX - velocity.x) * k;
+        velocity.y += (wantY - velocity.y) * k;
+
+        if (pointer && braking && now - pointer.at < 2000) {
+          var awayX = position.x - pointer.x;
+          var awayY = position.y - pointer.y;
+          var gap = Math.hypot(awayX, awayY);
+          if (gap < SHY_WITHIN && gap > 0.5) {
+            var push = (1 - gap / SHY_WITHIN) * 2200 * dt;
+            velocity.x += (awayX / gap) * push;
+            velocity.y += (awayY / gap) * push;
+          }
+        }
+
+        position.x += velocity.x * dt;
+        position.y += velocity.y * dt;
+
+        if (phase === 'search' && distance < 12) {
+          phase = 'think';
+          thinkUntil = now + THINK_MS + Math.random() * THINK_SPREAD_MS;
+          say(words.thoughts.length ? words.thoughts[stops % words.thoughts.length] : '');
+        } else if (phase === 'think' && now >= thinkUntil) {
+          stops += 1;
+          if (stops < STOPS) {
+            phase = 'search';
+            goal = nextStop(position, stops);
+            say('');
+          } else {
+            phase = 'spin';
+            spinStart = now;
+            spinCentre = { x: position.x, y: position.y + SPIN_RADIUS };
+            say(words.give_up);
+          }
+        } else if (phase === 'spin' && now - spinStart >= SPIN_MS) {
+          phase = 'leave';
+          say('');
+          leaveFrom = { x: position.x, y: position.y };
+          leaveStart = now;
+          goal = { x: position.x < width / 2 ? width + 120 : -120, y: -60 + Math.random() * height * 0.3 };
+        } else if (phase === 'leave') {
+          var journey = Math.hypot(goal.x - leaveFrom.x, goal.y - leaveFrom.y) || 1;
+          leaveProgress = Math.max(leaveProgress, clamp(1 - distance / journey, 0, 1));
+          scale = 1 - 0.55 * leaveProgress;
+          opacity = clamp(1 - (leaveProgress - 0.4) / 0.45, 0, 1);
+          if (opacity === 0 || now - leaveStart > LEAVE_MAX_MS) phase = 'gone';
+        }
+      }
+
+      function draw(now, dt) {
+        var seconds = now / 1000;
+        var speed = Math.hypot(velocity.x, velocity.y);
+        var sway = Math.sin(seconds * 13) * 6 * Math.min(1, speed / CRUISE);
+        var x = position.x + (speed > 1 ? (-velocity.y / speed) * sway : 0);
+        var y = position.y + (speed > 1 ? (velocity.x / speed) * sway : 0) + Math.sin(seconds * 6.5) * 3;
+        if (Math.abs(velocity.x) > 35) facing = velocity.x > 0 ? 1 : -1;
+        tilt += (clamp((velocity.y / CRUISE) * 26, -30, 30) - tilt) * Math.min(1, dt * 8);
+
+        if (phase === 'gone') {
+          bee.style.opacity = '0';
+        } else {
+          bee.style.transform = 'translate3d(' + (x - half.x).toFixed(1) + 'px, ' + (y - half.y).toFixed(1) + 'px, 0)';
+          parts.body.style.transform = 'scale(' + scale.toFixed(3) + ') scaleX(' + facing + ') rotate(' + tilt.toFixed(1) + 'deg)';
+          bee.style.opacity = opacity.toFixed(3);
+          var tail = { x: x - facing * half.x * 0.7 * scale, y: y + half.y * 0.2 * scale };
+          if (!lastDot || Math.hypot(tail.x - lastDot.x, tail.y - lastDot.y) >= TRAIL_STEP) {
+            dots.push({ x: tail.x, y: tail.y, born: now, alpha: opacity });
+            lastDot = tail;
+          }
+        }
+
+        while (dots.length > 0 && now - dots[0].born >= TRAIL_MS) dots.shift();
+        if (!context) {
+          dots.length = 0;
+          return;
+        }
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = trailColour;
+        for (var index = 0; index < dots.length; index += 1) {
+          var dot = dots[index];
+          var life = 1 - (now - dot.born) / TRAIL_MS;
+          context.globalAlpha = 0.6 * life * dot.alpha;
+          context.beginPath();
+          context.arc(dot.x, dot.y, 1 + 1.6 * life, 0, Math.PI * 2);
+          context.fill();
+        }
+        context.globalAlpha = 1;
+      }
+
+      var frame = 0;
+      var last = performance.now();
+      var announced = false;
+      function tick(now) {
+        frame = window.requestAnimationFrame(tick);
+        var dt = clamp((now - last) / 1000, 0, 0.05);
+        last = now;
+        step(now, dt);
+        draw(now, dt);
+        if (phase !== 'gone') return;
+        if (!announced) {
+          announced = true;
+          onGone();
+        }
+        if (dots.length === 0) {
+          window.cancelAnimationFrame(frame);
+          frame = 0;
+        }
+      }
+
+      function onPointer(event) {
+        var outer = stage.getBoundingClientRect();
+        pointer = { x: event.clientX - outer.left, y: event.clientY - outer.top, at: performance.now() };
+      }
+
+      var observer = window.ResizeObserver ? new ResizeObserver(resize) : null;
+      if (observer) observer.observe(stage);
+      else window.addEventListener('resize', resize);
+      window.addEventListener('pointermove', onPointer, { passive: true });
+      window.addEventListener('pointerdown', onPointer, { passive: true });
+      frame = window.requestAnimationFrame(tick);
+
+      return function () {
+        window.cancelAnimationFrame(frame);
+        if (observer) observer.disconnect();
+        else window.removeEventListener('resize', resize);
+        window.removeEventListener('pointermove', onPointer);
+        window.removeEventListener('pointerdown', onPointer);
+        bee.style.opacity = '0';
+        parts.thought.classList.remove('is-shown');
+        if (context) context.clearRect(0, 0, width, height);
+      };
+    }
+
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var stage = document.querySelector('.nf__stage');
+    if (reduce || !stage || !window.requestAnimationFrame) return;
+
+    var words = JSON.parse(document.getElementById('nf-words').textContent);
+    var lost = document.querySelector('.nf__lost');
+    var parts = {
+      stage: stage,
+      area: document.querySelector('.nf__code'),
+      cell: document.querySelector('.nf__cell'),
+      bee: stage.querySelector('.nf__bee'),
+      body: stage.querySelector('.nf__bee-body'),
+      thought: stage.querySelector('.nf__thought'),
+      trail: stage.querySelector('.nf__trail'),
+    };
+    // Shows the stage and hides the bee sitting on the cell.
+    document.documentElement.classList.add('is-flying');
+
+    var stop = null;
+    function start() {
+      stop = fly(parts, function () {
+        lost.classList.add('is-shown');
+      });
+    }
+    document.querySelector('.nf__call').addEventListener('click', function () {
+      lost.classList.remove('is-shown');
+      if (stop) stop();
+      start();
+    });
+    start();
+  })();
+</script>
+</body>
+</html>

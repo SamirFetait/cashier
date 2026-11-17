@@ -320,10 +320,15 @@ stock-takes}/`
 
 HQ ingest (called by branches): `POST /api/ingest/daily-report/` (auth: `X-Branch-Code` + `X-Api-Key`).
 
+**Unknown addresses** — anything under `/api/`, and any request that asks only for JSON, gets
+`404 {"code": "NOT_FOUND", "detail": "Not found."}`. A browser gets a "page not found" page in
+Arabic or English (`?lang=en`) with a link to the shop (`SHOP_SITE_URL`): a bee looks for the
+page, gives up and flies off. While `DEBUG` is on, Django shows its own debug page instead.
+
 ## Tests
 
 ```bash
-cd backend && python manage.py test --parallel 4   # 226 tests, ~70s
+cd backend && python manage.py test --parallel 4   # 267 tests, ~70s
 cd hq && python manage.py test                     # HQ: ingest auth, upsert, dashboard access
 cd frontend && npx tsc --noEmit -p tsconfig.web.json   # renderer
 cd frontend && npx tsc --noEmit -p tsconfig.node.json  # main + preload
