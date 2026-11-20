@@ -4,7 +4,6 @@ import {
   IconBarcode,
   IconLayoutDashboard,
   IconScan,
-  IconShoppingCart,
   IconBox,
   IconUsers,
   IconTruck,
@@ -48,7 +47,6 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} />, adminOnly: true },
   { to: "/scan", label: "scan", icon: <IconScan size={18} /> },
-  { to: "/new-order", label: "newOrder", icon: <IconShoppingCart size={18} /> },
   { to: "/orders", label: "orders", icon: <IconReceipt size={18} /> },
   // Every user works the website's orders: they are picked up at this till.
   { to: "/web-orders", label: "webOrders", icon: <IconWorld size={18} /> },

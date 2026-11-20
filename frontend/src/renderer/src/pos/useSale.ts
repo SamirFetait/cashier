@@ -23,7 +23,7 @@ export interface HeldSale {
   heldAt: string;
 }
 
-/** Shared by every till screen, so a sale held on one resumes on another. */
+/** Kept in localStorage, so held sales survive a reload. */
 const HELD_KEY = "cashier.heldSales";
 
 export function round2(n: number) {

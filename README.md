@@ -148,9 +148,9 @@ deli products (so weighed selling can be tried).
 ### Trying the till
 
 1. **Shift & Drawer → Open shift** with a float. Selling is blocked until a drawer is open.
-2. **New Order** — scan a barcode (or type one and press Enter). By-weight items are added at
-   zero so you can key in what the scale says.
-3. **Take payment** — quick-cash for the common case, or split across cash and card.
+2. **Scan & Sell** — scan a barcode (or type one and press Enter), or search by name. A
+   by-weight item asks for what the scale says before it goes on the invoice.
+3. **Pay** (or F9) — quick-cash for the common case, or split across cash and card.
 4. **Orders** — look up the sale, reprint it, or void/refund it (PIN `4321`).
 5. **Shift & Drawer → Close shift** — enter a blind count and compare against expected.
 

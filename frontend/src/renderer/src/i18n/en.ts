@@ -36,8 +36,6 @@ export const en = {
     address: "Address",
     notes: "Notes",
     total: "Total",
-    subtotal: "Subtotal",
-    discount: "Discount",
     date: "Date",
     customer: "Customer",
     cashier: "Cashier",
@@ -71,7 +69,6 @@ export const en = {
   nav: {
     dashboard: "Dashboard",
     scan: "Scan & Sell",
-    newOrder: "New Order",
     orders: "Orders",
     webOrders: "Website Orders",
     shift: "Shift & Drawer",
@@ -155,8 +152,6 @@ export const en = {
     recentOrders: "Recent Orders",
   },
   newOrder: {
-    unknownBarcode: "Unknown barcode",
-    weighedHint: (unit: string) => `Sold by ${unit} — enter the quantity.`,
     heldLabel: (count: number, total: string) =>
       `${count} item${count === 1 ? "" : "s"} · ${total}`,
     saleHeld: "Sale held",
@@ -176,16 +171,7 @@ export const en = {
       "A till session must be open before you can take payment, so cash is accountable to someone.",
     openShift: "Open a shift",
     heldSales: (n: number) => `Held sales (${n})`,
-    scanLabel: "Scan barcode",
-    scanPlaceholder: "Scan or type a barcode, then press Enter",
-    pickLabel: "Or pick a product",
-    pickPlaceholder: "Search by name",
-    productOption: (name: string, price: string, unit: string, stock: string) =>
-      `${name} — ${price}/${unit} (stock ${stock})`,
-    product: "Product",
-    emptyCart: "Scan an item to begin.",
     byWeight: " · by weight",
-    qtyRequired: "Required",
     wholeUnits: "Whole units",
     removeLine: "Remove line",
     customerLabel: "Customer (optional)",

@@ -28,8 +28,6 @@ export const ar: Messages = {
     address: "العنوان",
     notes: "ملاحظات",
     total: "الإجمالي",
-    subtotal: "المجموع الفرعي",
-    discount: "الخصم",
     date: "التاريخ",
     customer: "العميل",
     cashier: "الكاشير",
@@ -63,7 +61,6 @@ export const ar: Messages = {
   nav: {
     dashboard: "لوحة التحكم",
     scan: "البيع بالباركود",
-    newOrder: "فاتورة جديدة",
     orders: "الفواتير",
     webOrders: "طلبات الموقع",
     shift: "الوردية والدرج",
@@ -149,8 +146,6 @@ export const ar: Messages = {
     recentOrders: "أحدث الفواتير",
   },
   newOrder: {
-    unknownBarcode: "باركود غير معروف",
-    weighedHint: (unit) => `يُباع بوحدة ${unit} — أدخل الكمية.`,
     // Label-and-value form sidesteps Arabic's six plural forms.
     heldLabel: (count, total) => `الأصناف: ${count} · ${total}`,
     saleHeld: "تم تعليق الفاتورة",
@@ -170,16 +165,7 @@ export const ar: Messages = {
       "يجب فتح وردية قبل استلام أي مدفوعات، حتى تكون النقدية في عهدة شخص محدد.",
     openShift: "فتح وردية",
     heldSales: (n) => `الفواتير المعلّقة (${n})`,
-    scanLabel: "مسح الباركود",
-    scanPlaceholder: "امسح الباركود أو اكتبه ثم اضغط Enter",
-    pickLabel: "أو اختر صنفًا",
-    pickPlaceholder: "ابحث بالاسم",
-    productOption: (name, price, unit, stock) =>
-      `${name} — ${price}/${unit} (المخزون ${stock})`,
-    product: "الصنف",
-    emptyCart: "امسح صنفًا للبدء.",
     byWeight: " · بالوزن",
-    qtyRequired: "مطلوب",
     wholeUnits: "وحدات صحيحة فقط",
     removeLine: "حذف السطر",
     customerLabel: "العميل (اختياري)",

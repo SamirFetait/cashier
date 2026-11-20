@@ -8,7 +8,6 @@ import { UpdateNotifier } from "./components/UpdateNotifier";
 import { useAuth } from "./auth/AuthContext";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
-import { NewOrder } from "./pages/NewOrder";
 import { ScanSale } from "./pages/ScanSale";
 import { Labels } from "./pages/Labels";
 import { Orders } from "./pages/Orders";
@@ -52,7 +51,6 @@ function Screens(): ReactNode {
         {/* A cashier starts on the till; the dashboard is for super admins. */}
         <Route path="/" element={isSuperadmin ? <Dashboard /> : <Navigate to="/scan" replace />} />
         <Route path="/scan" element={<ScanSale />} />
-        <Route path="/new-order" element={<NewOrder />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/web-orders" element={<WebOrders />} />
         <Route path="/shift" element={<ShiftPage />} />
