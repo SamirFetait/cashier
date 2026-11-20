@@ -919,7 +919,7 @@ export const en = {
       alerts: "WhatsApp order alerts",
       alertsOn: "Send each new order to WhatsApp",
       alertsHint:
-        "Pickup orders when placed, deliveries when the customer reports the deposit (with the transfer screenshot). Sent from the WhatsApp account paired under Suppliers → WhatsApp setup.",
+        "Every order when it's placed, and deliveries again when the customer reports the deposit (with the transfer screenshot). Sent from the WhatsApp account paired under Suppliers → WhatsApp setup.",
       alertNumber: "Number that receives the alerts",
       alertNumberHint: "Leave empty to use the store WhatsApp number.",
       alertsOff: "Off",

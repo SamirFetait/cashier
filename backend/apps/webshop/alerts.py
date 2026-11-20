@@ -1,11 +1,12 @@
-"""WhatsApp alerts the server sends the shop when a website order needs it.
+"""WhatsApp alerts the server sends the shop about website orders.
 
 They go out from the WhatsApp account paired with the whatsapp-service
 sidecar, to the number in the website settings (the store's own WhatsApp
 number unless another one is set):
 
-* a pickup, the moment it is placed (it is accepted at once);
-* a delivery, the moment the customer reports the deposit, with the transfer
+* every order, the moment it is placed: a pickup is accepted at once, a
+  delivery waits for its deposit;
+* a delivery again when the customer reports the deposit, with the transfer
   screenshot attached when they sent one.
 
 Sending waits until the order is saved and then runs on a thread of its own,
@@ -28,7 +29,7 @@ from .models import DepositProof, ShopSettings, WebOrder
 
 log = logging.getLogger(__name__)
 
-PLACED = "PLACED"    # a pickup, accepted the moment it was placed
+PLACED = "PLACED"    # any order, the moment it was placed
 DEPOSIT = "DEPOSIT"  # a delivery whose customer says the deposit is sent
 
 
@@ -58,8 +59,10 @@ def order_message(order: WebOrder, kind: str) -> str:
     pickup = order.fulfilment == WebOrder.Fulfilment.PICKUP
     if kind == DEPOSIT:
         title = f"عربون للمراجعة: طلب {order.code}"
-    else:
+    elif pickup:
         title = f"طلب استلام جديد من الموقع: {order.code}"
+    else:
+        title = f"طلب توصيل جديد من الموقع: {order.code}"
     lines = [
         title,
         "",
@@ -84,9 +87,12 @@ def order_message(order: WebOrder, kind: str) -> str:
         if order.deposit_sender:
             lines.append(f"المحوِّل: {order.deposit_sender}")
         lines += ["", "راجع التحويل في إنستا باي، ثم أكّده من «طلبات الموقع» في برنامج الكاشير."]
-    else:
+    elif pickup:
         lines.append(f"المطلوب عند الاستلام: {_money(order.balance_due)}")
         lines += ["", "الطلب مقبول تلقائياً. جهّزه من «طلبات الموقع» في برنامج الكاشير."]
+    else:
+        lines.append(f"العربون المطلوب: {_money(order.deposit_required)}")
+        lines += ["", "في انتظار تحويل العربون، فلا تجهّزه بعد. ستصلك رسالة أخرى عندما يبلّغ العميل بالتحويل."]
     return "\n".join(lines)
 
 

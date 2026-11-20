@@ -47,9 +47,24 @@ class AlertTests(ShopTestCase):
         logged = WhatsAppMessage.objects.get()
         self.assertEqual((logged.status, logged.to_number), ("SENT", STORE))
 
-    def test_a_delivery_is_sent_with_the_screenshot_once_the_deposit_is_reported(self, send):
+    def test_a_delivery_is_sent_when_placed_as_waiting_for_its_deposit(self, send):
         order = self.place_alerted()
-        send.assert_not_called()   # nothing for the shop to do until the deposit
+        send.assert_called_once()
+        number, text = send.call_args.args
+        self.assertEqual(number, STORE)
+        for expected in (
+            f"طلب توصيل جديد من الموقع: {order['code']}", "Mona Ali", "+201012345678",
+            "توصيل إلى: 12 Nile St, Maadi", "• Sidr Honey 500g × 2 = 500.00 ج.م",
+            "العربون المطلوب: 250.00 ج.م", "في انتظار تحويل العربون",
+        ):
+            self.assertIn(expected, text)
+        self.assertNotIn("المطلوب عند الاستلام", text)
+        logged = WhatsAppMessage.objects.get()
+        self.assertEqual((logged.status, logged.to_number), ("SENT", STORE))
+
+    def test_a_delivery_is_sent_again_with_the_screenshot_once_the_deposit_is_reported(self, send):
+        order = self.place_alerted()
+        send.reset_mock()
 
         self.pay_alerted(order, reference="123456789012", sender="Mona", proof=png_bytes())
         self.assertEqual(send.call_count, 2)
@@ -76,6 +91,7 @@ class AlertTests(ShopTestCase):
     def test_alerts_can_be_switched_off(self, send):
         self.shop_settings(whatsapp_alerts=False)
         self.place_alerted(fulfilment="PICKUP")
+        self.place_alerted()
         send.assert_not_called()
         self.assertFalse(WhatsAppMessage.objects.exists())
 

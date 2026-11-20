@@ -205,8 +205,9 @@ def create_order(
                 order, Kind.STATUS, actor="system", public=True,
                 data={"from": Status.AWAITING_DEPOSIT, "to": Status.CONFIRMED, "auto": True},
             )
-            # The shop has something to prepare now: tell it on WhatsApp.
-            alerts.alert_shop(order, alerts.PLACED)
+        # Tell the shop on WhatsApp. A delivery is sent again when its
+        # deposit is reported.
+        alerts.alert_shop(order, alerts.PLACED)
     return order
 
 
