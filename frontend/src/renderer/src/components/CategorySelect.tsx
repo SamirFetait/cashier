@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import type { Category, Paginated } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n";
+import classes from "./CategorySelect.module.css";
 
 export const CATEGORIES_KEY = ["categories"];
 /** The option that adds the typed name as a new category; never a category id. */
@@ -72,6 +73,7 @@ export function CategorySelect({
       placeholder={isSuperadmin ? t.products.categoryPlaceholder : undefined}
       searchable
       clearable
+      classNames={{ option: classes.option }}
       data={[
         ...list.map((c) => ({ value: String(c.id), label: c.name })),
         ...(offerNew ? [{ value: NEW_CATEGORY, label: t.products.newCategory(typed) }] : []),

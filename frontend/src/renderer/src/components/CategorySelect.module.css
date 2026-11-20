@@ -1,0 +1,20 @@
+/*
+ * The option that adds the typed name as a new category (value NEW_CATEGORY
+ * in CategorySelect.tsx) is styled like a light green button, so it reads as
+ * an action and not as one more category.
+ */
+.option[value="new-category"] {
+  font-weight: 600;
+  color: var(--mantine-color-green-light-color);
+  background-color: var(--mantine-color-green-light);
+
+  @mixin hover {
+    background-color: var(--mantine-color-green-light-hover);
+  }
+
+  /* Highlighted with the arrow keys. */
+  &[data-combobox-selected] {
+    color: var(--mantine-color-white);
+    background-color: var(--mantine-color-green-filled);
+  }
+}
