@@ -420,7 +420,16 @@ website sells from the same products, stock and photos as the tills.
 - **Hand-over rings up a normal sale** through `OrderCreateSerializer`: stock leaves through
   the ledger, a receipt number is issued, the deposit is a MOBILE tender, the balance is cash,
   card or wallet (cash lands in the open shift's drawer), and discounts need the manager PIN
-  as at the till. The web order's id is the sale's `client_uuid`, so it can never be sold twice.
+  as at the till (a game prize excepted, below). The web order's id is the sale's
+  `client_uuid`, so it can never be sold twice.
+- **Games and prizes.** The website's games are switched on and off in the settings (orders
+  admin, or the Website tab), and a good score can win a share off the goods of the next web
+  order, on terms a super admin sets there (`apps/webshop/prizes.py`). The score is checked
+  here; the code it wins is kept to the phone number it was won with, for a week, and a
+  number wins once a week. The prize comes off the goods before the deposit is worked out, and
+  at hand-over it is the sale's own order discount: authorised already, it asks for no manager
+  PIN, though any other discount on the sale still does, and the audit log records it like
+  any other.
 - Web sales appear in Orders, reports and the HQ daily report like any other sale, with the
   note "Web order FK-...".
 

@@ -296,6 +296,9 @@ export interface WebOrder {
   /** When an unpaid delivery stops holding its stock. */
   expires_at: string | null;
   subtotal: string;
+  /** A game prize taken off the goods ("0.00" without one), and its code. */
+  discount?: string;
+  prize_code?: string;
   delivery_fee: string;
   total: string;
   deposit_required: string;
@@ -412,6 +415,12 @@ export interface WebPriceChange {
 /** What ringing a website order up would look like right now. */
 export interface WebSalePlan {
   changes: WebPriceChange[];
+  /** The goods at the prices chosen, before a game prize. */
+  goods?: string;
+  /** A game prize, rung up as the sale's own discount. */
+  discount?: string;
+  prize_code?: string;
+  /** What the cashier sale comes to: the goods less the prize. */
   total: string;
   quoted_total: string;
   current_total: string;

@@ -294,6 +294,9 @@ function OrderBody({ order }: { order: WebOrderDetail }) {
         <Divider my="xs" />
         <Stack gap={4}>
           <Row label={w.subtotal} value={money(order.subtotal, t)} />
+          {toNumber(order.discount) > 0 && (
+            <Row label={`${w.prize} ${ltr(order.prize_code ?? "")}`} value={ltr(`-${money(order.discount, t)}`)} />
+          )}
           {!pickup && <Row label={w.delivery} value={money(order.delivery_fee, t)} />}
           <Row label={w.total} value={money(order.total, t)} strong />
           {takesDeposit ? (

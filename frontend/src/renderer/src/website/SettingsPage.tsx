@@ -1,5 +1,6 @@
 /** The website's settings: ordering, InstaPay, the deposit, delivery and
- * pickup, WhatsApp order alerts, and the shop's details on the website. */
+ * pickup, WhatsApp order alerts, the shop's details on the website, and its
+ * games and the prizes a good score wins. */
 import {
   Alert,
   Button,
@@ -17,11 +18,11 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconCircleCheck, IconCircleX, IconDeviceFloppy, IconUpload } from "@tabler/icons-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 
 import { api } from "../api/client";
 import { ltr, useI18n } from "../i18n";
-import { serverUrl } from "../webOrders/api";
+import { money, serverUrl } from "../webOrders/api";
 import {
   fieldErrors,
   useQrUpload,
@@ -42,6 +43,19 @@ function toDraft(settings: WebsiteSettings): Draft {
   const { instapay_qr_image: _q, instapay_ready: _r, updated_at: _u, updated_by: _b, ...draft } = settings;
   return { ...draft, free_delivery_over: draft.free_delivery_over ?? "" };
 }
+
+/** Each game's switch, the score that wins it, and what that score counts. */
+const GAMES: ReadonlyArray<{
+  name: "pushUps" | "memory" | "quiz" | "hungry";
+  on: "push_ups_on" | "memory_on" | "calorie_challenge_on" | "hungry_bee_on";
+  toWin: "push_ups_to_win" | "memory_stars_to_win" | "quiz_to_win" | "hungry_bee_to_win";
+  counts: "pushUpsToWin" | "memoryToWin" | "quizToWin" | "hungryToWin";
+}> = [
+  { name: "pushUps", on: "push_ups_on", toWin: "push_ups_to_win", counts: "pushUpsToWin" },
+  { name: "memory", on: "memory_on", toWin: "memory_stars_to_win", counts: "memoryToWin" },
+  { name: "quiz", on: "calorie_challenge_on", toWin: "quiz_to_win", counts: "quizToWin" },
+  { name: "hungry", on: "hungry_bee_on", toWin: "hungry_bee_to_win", counts: "hungryToWin" },
+];
 
 export function SettingsPage() {
   const { t } = useI18n();
@@ -118,6 +132,20 @@ export function SettingsPage() {
       {t.common.save}
     </Button>
   );
+
+  // The prize's terms in a sentence: the goods that can use one, and those
+  // from which it takes its most (its share is in whole pounds, rounded down).
+  const prizePercent = Number(form.prize_percent);
+  const prizeMax = Number(form.prize_max);
+  const prizeMin = Number(form.prize_min_order);
+  const fullFrom = prizePercent > 0 ? Math.ceil((Math.ceil(prizeMax) * 100) / prizePercent) : 0;
+  const prizeTerms =
+    prizePercent > 0 && prizeMax > 0
+      ? `${s.prizeUse(prizeMin > 0 ? money(prizeMin, t) : null)} ${s.prizeFull(
+          money(prizeMax, t),
+          fullFrom > prizeMin ? money(fullFrom, t) : null
+        )}`
+      : null;
 
   return (
     <>
@@ -229,6 +257,44 @@ export function SettingsPage() {
           {text("delivery_note_en", s.noteEn, { dir: "ltr" })}
           {text("announcement_ar", s.announceAr, { dir: "rtl" })}
           {text("announcement_en", s.announceEn, { dir: "ltr" })}
+        </SimpleGrid>
+      </Section>
+
+      <Section title={s.games} intro={s.gamesHint}>
+        <Group gap="xl">
+          {GAMES.map((game) => (
+            <Switch
+              key={game.on}
+              label={s.game[game.name]}
+              checked={form[game.on]}
+              onChange={(e) => set(game.on, e.currentTarget.checked)}
+            />
+          ))}
+        </Group>
+      </Section>
+
+      <Section title={s.prizes}>
+        <Switch
+          label={s.prizesOn}
+          description={s.prizesHint}
+          checked={form.prizes_enabled}
+          onChange={(e) => set("prizes_enabled", e.currentTarget.checked)}
+        />
+        <SimpleGrid cols={{ base: 1, sm: 3 }}>
+          {number("prize_percent", s.prizePercent)}
+          {number("prize_max", s.prizeMax)}
+          {number("prize_min_order", s.prizeMinOrder)}
+        </SimpleGrid>
+        {prizeTerms && (
+          <Text size="sm" c="dimmed">
+            {prizeTerms}
+          </Text>
+        )}
+        <Title order={5}>{s.toWin}</Title>
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          {GAMES.map((game) => (
+            <Fragment key={game.toWin}>{number(game.toWin, s.game[game.name], s[game.counts])}</Fragment>
+          ))}
         </SimpleGrid>
       </Section>
 

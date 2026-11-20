@@ -80,6 +80,21 @@ export interface WebsiteSettings {
   delivery_note_en: string;
   announcement_ar: string;
   announcement_en: string;
+  /** The website's games, each switched on or off. */
+  push_ups_on: boolean;
+  memory_on: boolean;
+  calorie_challenge_on: boolean;
+  hungry_bee_on: boolean;
+  /** Whether a good score wins a share off the next web order, and on what terms. */
+  prizes_enabled: boolean;
+  prize_percent: number;
+  prize_max: string;
+  prize_min_order: string;
+  /** The score that wins in each game. */
+  push_ups_to_win: number;
+  memory_stars_to_win: number;
+  quiz_to_win: number;
+  hungry_bee_to_win: number;
   updated_at: string | null;
   updated_by: string;
 }

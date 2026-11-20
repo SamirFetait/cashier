@@ -150,10 +150,33 @@ export function CompleteModal({
             <>
               <Table>
                 <Table.Tbody>
-                  <Table.Tr>
-                    <Table.Td>{w.goods}</Table.Td>
-                    <Table.Td ta="end">{money(plan.total, t)}</Table.Td>
-                  </Table.Tr>
+                  {toNumber(plan.discount) > 0 ? (
+                    // The prize is the sale's own discount, set by a super
+                    // admin: it asks for no manager PIN.
+                    <>
+                      <Table.Tr>
+                        <Table.Td>{w.goodsOnly}</Table.Td>
+                        <Table.Td ta="end">{money(plan.goods, t)}</Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td c="green">
+                          {w.prize} {ltr(plan.prize_code ?? "")}
+                        </Table.Td>
+                        <Table.Td ta="end" c="green">
+                          {ltr(`-${money(plan.discount, t)}`)}
+                        </Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td>{w.saleTotal}</Table.Td>
+                        <Table.Td ta="end">{money(plan.total, t)}</Table.Td>
+                      </Table.Tr>
+                    </>
+                  ) : (
+                    <Table.Tr>
+                      <Table.Td>{w.goods}</Table.Td>
+                      <Table.Td ta="end">{money(plan.total, t)}</Table.Td>
+                    </Table.Tr>
+                  )}
                   {toNumber(plan.deposit_applied) > 0 && (
                     <Table.Tr>
                       <Table.Td>{w.deposit}</Table.Td>
