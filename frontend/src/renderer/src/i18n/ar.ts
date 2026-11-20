@@ -75,6 +75,12 @@ export const ar: Messages = {
     logout: "تسجيل الخروج",
     menu: "القائمة",
   },
+  navSections: {
+    selling: "البيع",
+    stock: "المخزون",
+    reports: "التقارير",
+    settings: "الإعدادات",
+  },
 
   roles: {
     SUPERADMIN: "مدير النظام",

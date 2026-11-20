@@ -83,6 +83,13 @@ export const en = {
     logout: "Logout",
     menu: "Menu",
   },
+  /** The sidebar's section headings. */
+  navSections: {
+    selling: "Selling",
+    stock: "Stock",
+    reports: "Reports",
+    settings: "Settings",
+  },
 
   // Display names for codes the server sends.
   roles: {

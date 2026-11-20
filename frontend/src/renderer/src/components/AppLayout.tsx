@@ -43,22 +43,48 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
+interface NavSection {
+  /** The heading above the section; the dashboard, on top, has none. */
+  title?: keyof Messages["navSections"];
+  items: NavItem[];
+}
+
 // A cashier sees only what selling needs; the rest is for super admins.
-const NAV: NavItem[] = [
-  { to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} />, adminOnly: true },
-  { to: "/scan", label: "scan", icon: <IconScan size={18} /> },
-  { to: "/orders", label: "orders", icon: <IconReceipt size={18} /> },
-  // Every user works the website's orders: they are picked up at this till.
-  { to: "/web-orders", label: "webOrders", icon: <IconWorld size={18} /> },
-  { to: "/shift", label: "shift", icon: <IconCashRegister size={18} /> },
-  { to: "/products", label: "products", icon: <IconBox size={18} />, adminOnly: true },
-  { to: "/labels", label: "labels", icon: <IconBarcode size={18} />, adminOnly: true },
-  { to: "/customers", label: "customers", icon: <IconUsers size={18} />, adminOnly: true },
-  { to: "/suppliers", label: "suppliers", icon: <IconTruck size={18} />, adminOnly: true },
-  { to: "/printer", label: "printer", icon: <IconPrinter size={18} />, adminOnly: true },
-  { to: "/reports", label: "reports", icon: <IconChartBar size={18} />, adminOnly: true },
-  { to: "/hq-reports", label: "hqReports", icon: <IconReportAnalytics size={18} />, adminOnly: true },
-  { to: "/users", label: "users", icon: <IconUserShield size={18} />, adminOnly: true },
+const NAV: NavSection[] = [
+  { items: [{ to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} />, adminOnly: true }] },
+  {
+    title: "selling",
+    items: [
+      { to: "/scan", label: "scan", icon: <IconScan size={18} /> },
+      { to: "/orders", label: "orders", icon: <IconReceipt size={18} /> },
+      // Every user works the website's orders: they are picked up at this till.
+      { to: "/web-orders", label: "webOrders", icon: <IconWorld size={18} /> },
+      { to: "/shift", label: "shift", icon: <IconCashRegister size={18} /> },
+      { to: "/customers", label: "customers", icon: <IconUsers size={18} />, adminOnly: true },
+    ],
+  },
+  {
+    title: "stock",
+    items: [
+      { to: "/products", label: "products", icon: <IconBox size={18} />, adminOnly: true },
+      { to: "/labels", label: "labels", icon: <IconBarcode size={18} />, adminOnly: true },
+      { to: "/suppliers", label: "suppliers", icon: <IconTruck size={18} />, adminOnly: true },
+    ],
+  },
+  {
+    title: "reports",
+    items: [
+      { to: "/reports", label: "reports", icon: <IconChartBar size={18} />, adminOnly: true },
+      { to: "/hq-reports", label: "hqReports", icon: <IconReportAnalytics size={18} />, adminOnly: true },
+    ],
+  },
+  {
+    title: "settings",
+    items: [
+      { to: "/printer", label: "printer", icon: <IconPrinter size={18} />, adminOnly: true },
+      { to: "/users", label: "users", icon: <IconUserShield size={18} />, adminOnly: true },
+    ],
+  },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -74,6 +100,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   });
   // New website orders pop up on whatever screen is open.
   useWebOrderAlerts();
+  // A section with nothing this user may open is left out, heading and all.
+  const sections = NAV.map((section) => ({
+    ...section,
+    items: section.items.filter((n) => !n.adminOnly || isSuperadmin),
+  })).filter((section) => section.items.length > 0);
 
   return (
     <AppShell
@@ -119,17 +150,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </AppShell.Header>
 
       <AppShell.Navbar p="xs">
+        {/* Small headings, and rows 4px shorter than Mantine's, so all of a
+            super admin's pages fit the window's default 820px height
+            without scrolling. */}
         <AppShell.Section grow component={ScrollArea}>
-          {NAV.filter((n) => !n.adminOnly || isSuperadmin).map((n) => (
-            <NavLink
-              key={n.to}
-              component={RouterNavLink}
-              to={n.to}
-              label={t.nav[n.label]}
-              leftSection={n.icon}
-              active={location.pathname === n.to}
-              onClick={() => opened && toggle()}
-            />
+          {sections.map((section, index) => (
+            <div key={section.title ?? "home"}>
+              {section.title && (
+                <Text size="xs" fw={700} c="dimmed" px="sm" pt={index === 0 ? 4 : "xs"} pb={2}>
+                  {t.navSections[section.title]}
+                </Text>
+              )}
+              {section.items.map((n) => (
+                <NavLink
+                  key={n.to}
+                  component={RouterNavLink}
+                  to={n.to}
+                  label={t.nav[n.label]}
+                  leftSection={n.icon}
+                  active={location.pathname === n.to}
+                  onClick={() => opened && toggle()}
+                  py={6}
+                />
+              ))}
+            </div>
           ))}
         </AppShell.Section>
         <AppShell.Section>
