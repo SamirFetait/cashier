@@ -77,6 +77,38 @@ class ShopSettings(models.Model):
     announcement_ar = models.CharField(max_length=255, blank=True)
     announcement_en = models.CharField(max_length=255, blank=True)
 
+    # --- The website's games, and the prizes a good score wins (prizes.py) ---
+    push_ups_on = models.BooleanField(default=True)
+    memory_on = models.BooleanField(default=True)
+    calorie_challenge_on = models.BooleanField(default=True)
+    hungry_bee_on = models.BooleanField(default=True)
+    prizes_enabled = models.BooleanField(
+        default=False, help_text="A good score in a game wins a share off the next web order"
+    )
+    prize_percent = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(1), MaxValueValidator(50)], help_text="Share off the goods"
+    )
+    prize_max = money_field(
+        default=Decimal("50.00"), validators=[MinValueValidator(Decimal("1.00"))],
+        help_text="The most one prize takes off",
+    )
+    prize_min_order = money_field(
+        default=Decimal("200.00"), validators=[MinValueValidator(ZERO)],
+        help_text="Goods an order needs to use a prize",
+    )
+    push_ups_to_win = models.PositiveSmallIntegerField(
+        default=25, validators=[MinValueValidator(1), MaxValueValidator(1000)], help_text="Push-ups that win"
+    )
+    memory_stars_to_win = models.PositiveSmallIntegerField(
+        default=3, validators=[MinValueValidator(1), MaxValueValidator(3)], help_text="Stars that win, on any board"
+    )
+    quiz_to_win = models.PositiveSmallIntegerField(
+        default=9, validators=[MinValueValidator(1), MaxValueValidator(10)], help_text="Right answers out of 10 that win"
+    )
+    hungry_bee_to_win = models.PositiveSmallIntegerField(
+        default=45, validators=[MinValueValidator(1), MaxValueValidator(1000)], help_text="Points that win"
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
@@ -168,8 +200,13 @@ class WebOrder(models.Model):
     notes = models.CharField(max_length=500, blank=True)
 
     # What the customer was quoted. The deposit is a share of the goods
-    # (subtotal); the delivery fee is collected on delivery, outside the sale.
+    # (subtotal, less a game prize's discount); the delivery fee is collected
+    # on delivery, outside the sale. total = subtotal - discount + delivery fee.
     subtotal = money_field()
+    # A game prize taken off the goods (prizes.py), rung up at hand-over as
+    # the sale's own discount.
+    discount = money_field(default=ZERO)
+    prize_code = models.CharField(max_length=16, blank=True)
     delivery_fee = money_field(default=ZERO)
     total = money_field()
     deposit_required = money_field()
@@ -226,6 +263,36 @@ class WebOrder(models.Model):
     def balance_due(self) -> Decimal:
         """Still owed against the quoted total, delivery fee included."""
         return max(self.total - self.deposit_paid, ZERO)
+
+
+class GamePrize(models.Model):
+    """A share off the next web order, won with a good score in one of the
+    website's games (prizes.py). Kept to the phone number it was won with,
+    on the terms of the day it was won."""
+
+    code = models.CharField(max_length=16, unique=True)
+    phone = models.CharField(max_length=20, db_index=True)
+    game = models.CharField(max_length=30)
+    score = models.PositiveIntegerField()
+    # The memory game's board.
+    level = models.CharField(max_length=10, blank=True)
+    percent = models.PositiveSmallIntegerField()
+    max_discount = money_field()
+    min_order = money_field(default=ZERO)
+    expires_at = models.DateTimeField()
+    # The order that took it; it is free again if that order is cancelled
+    # or expires.
+    order = models.ForeignKey(
+        WebOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    client_ip = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.code} ({self.game}, {self.phone})"
 
 
 class WebOrderItem(models.Model):

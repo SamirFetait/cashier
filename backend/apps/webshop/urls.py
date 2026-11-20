@@ -16,6 +16,8 @@ urlpatterns = [
     path("orders/<str:code>/", public.OrderTrackView.as_view(), name="webshop-order"),
     path("orders/<str:code>/deposit/", public.OrderDepositView.as_view(), name="webshop-order-deposit"),
     path("orders/<str:code>/cancel/", public.OrderCancelView.as_view(), name="webshop-order-cancel"),
+    path("prizes/", public.PrizeClaimView.as_view(), name="webshop-prize-claim"),
+    path("prizes/check/", public.PrizeCheckView.as_view(), name="webshop-prize-check"),
     # Orders admin (cashier staff)
     path("admin/board/", admin.BoardView.as_view(), name="webshop-board"),
     path("admin/orders/", admin.OrderListView.as_view(), name="webshop-admin-orders"),

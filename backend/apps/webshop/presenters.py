@@ -12,9 +12,10 @@ from django.utils import timezone
 
 from apps.products.models import ProductImage
 
-from . import catalog, phones, pricing
+from . import catalog, phones, pricing, prizes
 from .models import (
-    DepositProof, EventMedia, HealthySwap, Listing, ShopEvent, ShopSettings, ShopVideo, StoredImage, WebOrder,
+    DepositProof, EventMedia, GamePrize, HealthySwap, Listing, ShopEvent, ShopSettings, ShopVideo, StoredImage,
+    WebOrder,
 )
 
 MONEY = Decimal("0.01")
@@ -139,6 +140,35 @@ def config_json(settings: ShopSettings) -> dict:
             "stories": [video_json(v) for v in videos if v.placement == ShopVideo.Placement.STORY],
         },
         "swaps": swaps_json(),
+        "games": games_json(settings),
+    }
+
+
+def games_json(settings: ShopSettings) -> dict:
+    """The games the website shows, and, while prizes are on, what a winning
+    score earns and the score that wins in each game."""
+    terms = None
+    if settings.prizes_enabled:
+        terms = {
+            "percent": settings.prize_percent,
+            "max": m(settings.prize_max),
+            "min_order": m(settings.prize_min_order),
+            "days": prizes.PRIZE_DAYS,
+            "to_win": {game: prizes.to_win(settings, game) for game in prizes.GAMES},
+        }
+    return {"on": prizes.games_on(settings), "prizes": terms}
+
+
+def prize_json(prize: GamePrize) -> dict:
+    """A prize, for the customer who won it."""
+    return {
+        "code": prize.code,
+        "game": prize.game,
+        "phone": phones.mask_phone(prize.phone),
+        "percent": prize.percent,
+        "max": m(prize.max_discount),
+        "min_order": m(prize.min_order),
+        "expires_at": iso(prize.expires_at),
     }
 
 
@@ -296,6 +326,8 @@ def quote_json(quote: pricing.Quote) -> dict:
             for line in quote.lines
         ],
         "subtotal": m(quote.subtotal),
+        "discount": m(quote.discount),
+        "prize_code": quote.prize_code,
         "delivery_fee": m(quote.delivery_fee),
         "total": m(quote.total),
         "deposit": m(quote.deposit),
@@ -358,6 +390,8 @@ def public_order_json(order: WebOrder, *, with_token: bool = False) -> dict:
         "server_time": iso(timezone.now()),
         "items": _items_json(order),
         "subtotal": m(order.subtotal),
+        "discount": m(order.discount),
+        "prize_code": order.prize_code,
         "delivery_fee": m(order.delivery_fee),
         "total": m(order.total),
         "deposit_required": m(order.deposit_required),
@@ -414,6 +448,8 @@ def admin_order_json(order: WebOrder, *, detail: bool = False) -> dict:
         "updated_at": iso(order.updated_at),
         "expires_at": iso(order.expires_at) if order.status == WebOrder.Status.AWAITING_DEPOSIT else None,
         "subtotal": m(order.subtotal),
+        "discount": m(order.discount),
+        "prize_code": order.prize_code,
         "delivery_fee": m(order.delivery_fee),
         "total": m(order.total),
         "deposit_required": m(order.deposit_required),
@@ -509,6 +545,18 @@ def settings_json(settings: ShopSettings) -> dict:
         "delivery_note_en": settings.delivery_note_en,
         "announcement_ar": settings.announcement_ar,
         "announcement_en": settings.announcement_en,
+        "push_ups_on": settings.push_ups_on,
+        "memory_on": settings.memory_on,
+        "calorie_challenge_on": settings.calorie_challenge_on,
+        "hungry_bee_on": settings.hungry_bee_on,
+        "prizes_enabled": settings.prizes_enabled,
+        "prize_percent": settings.prize_percent,
+        "prize_max": m(settings.prize_max),
+        "prize_min_order": m(settings.prize_min_order),
+        "push_ups_to_win": settings.push_ups_to_win,
+        "memory_stars_to_win": settings.memory_stars_to_win,
+        "quiz_to_win": settings.quiz_to_win,
+        "hungry_bee_to_win": settings.hungry_bee_to_win,
         "updated_at": iso(settings.updated_at),
         "updated_by": _user(settings.updated_by),
     }

@@ -14,6 +14,8 @@ DEFAULT_RATES = {
     "shop_order": "30/hour",
     "shop_deposit": "40/hour",
     "shop_lookup": "20/hour",
+    "shop_prize": "30/hour",
+    "shop_prize_check": "60/hour",
 }
 
 
@@ -56,3 +58,11 @@ class DepositThrottle(_ByAddress):
 
 class LookupThrottle(_ByAddress):
     scope = "shop_lookup"
+
+
+class PrizeThrottle(_ByAddress):
+    scope = "shop_prize"
+
+
+class PrizeCheckThrottle(_ByAddress):
+    scope = "shop_prize_check"

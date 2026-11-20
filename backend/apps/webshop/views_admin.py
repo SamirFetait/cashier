@@ -202,6 +202,9 @@ class SalePlanView(AdminView):
         fee_covered = min(order.deposit_paid - plan["deposit_applied"], order.delivery_fee)
         return Response({
             "changes": plan["changes"],
+            "goods": m(plan["goods"]),
+            "discount": m(plan["discount"]),
+            "prize_code": order.prize_code,
             "total": m(plan["total"]),
             "quoted_total": m(plan["quoted_total"]),
             "current_total": m(plan["current_total"]),

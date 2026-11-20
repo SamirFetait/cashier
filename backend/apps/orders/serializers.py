@@ -215,10 +215,16 @@ class OrderCreateSerializer(serializers.Serializer):
         total_discount = attrs.get("discount", ZERO) + sum(
             (line.get("discount", ZERO) for line in attrs["items"]), ZERO
         )
-        if total_discount > ZERO and discount_needs_override(total_discount, gross):
+        # Part of the discount may be authorised already, outside the till: a
+        # website game prize, on terms a super admin set (the webshop passes
+        # it in the context). Only the rest can need a supervisor; the audit
+        # log below still records the whole discount.
+        authorised = self.context.get("authorised_discount") or ZERO
+        unauthorised = max(total_discount - authorised, ZERO)
+        if unauthorised > ZERO and discount_needs_override(unauthorised, gross):
             request = self.context.get("request")
             attrs["_authorised_by"] = resolve_override(
-                request, action="discount", detail=f"discount {total_discount} on {gross}"
+                request, action="discount", detail=f"discount {unauthorised} on {gross}"
             )
 
         total = subtotal - attrs.get("discount", ZERO) + attrs.get("tax", ZERO)

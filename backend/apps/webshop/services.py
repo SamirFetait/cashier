@@ -27,7 +27,7 @@ from rest_framework import serializers as drf_serializers
 from apps.customers.models import Customer
 from apps.orders.models import Order
 
-from . import alerts, catalog, phones, pricing
+from . import alerts, catalog, phones, pricing, prizes
 from .errors import ShopError, first_message
 from .images import ProcessedImage
 from .models import DepositProof, ShopSettings, WebOrder, WebOrderEvent, WebOrderItem
@@ -113,12 +113,14 @@ def open_unpaid_count(phone: str) -> int:
 
 def create_order(
     *, items, fulfilment, customer_name, phone, address="", notes="",
-    language="ar", expected_total=None, client_ip=None,
+    language="ar", expected_total=None, client_ip=None, prize_code="",
 ) -> WebOrder:
     """Price the cart from live prices and stock, and reserve it.
 
     A delivery waits for its InstaPay deposit. A pickup is accepted at once:
     it is created confirmed, with nothing to pay until the customer collects.
+    A game prize's code, for the order's phone number, takes its share off
+    the goods, and the order holds the prize.
 
     Raises ShopError with the fresh quote attached when the cart can no longer
     be ordered as the customer saw it (something sold out, a price moved).
@@ -128,14 +130,22 @@ def create_order(
     ShopSettings.load()  # make sure the row exists before locking it
     with transaction.atomic():
         # Locking the settings row makes placement one-at-a-time, so the
-        # availability check and the reservation cannot interleave.
+        # availability check and the reservation cannot interleave, and a
+        # prize cannot go to two orders at once.
         settings = ShopSettings.objects.select_for_update().get(pk=1)
+        # An order that has just run out frees its stock, and its prize.
         expire_stale(force=True)
-        quote = pricing.build_quote(items, fulfilment, settings)
+        prize = prizes.find(prize_code, phone) if prize_code else None
+        quote = pricing.build_quote(items, fulfilment, settings, prize)
         if not quote.ok:
             raise ShopError(
                 "CART_CHANGED", "The cart can no longer be ordered as it is.",
                 status=409, quote=quote_json(quote),
+            )
+        if prize is not None and quote.discount == ZERO:
+            raise ShopError(
+                "PRIZE_MIN_ORDER", "The goods are under the prize's minimum order.",
+                status=409, min_order=str(prize.min_order), quote=quote_json(quote),
             )
         if expected_total is not None and Decimal(expected_total) != quote.total:
             raise ShopError(
@@ -160,6 +170,8 @@ def create_order(
             address=address if quote.fulfilment == WebOrder.Fulfilment.DELIVERY else "",
             notes=notes,
             subtotal=quote.subtotal,
+            discount=quote.discount,
+            prize_code=quote.prize_code,
             delivery_fee=quote.delivery_fee,
             total=quote.total,
             deposit_required=quote.deposit,
@@ -181,7 +193,13 @@ def create_order(
             )
             for line in quote.lines
         )
-        log_event(order, Kind.CREATED, actor="customer", public=True)
+        if prize is not None:
+            prize.order = order
+            prize.save(update_fields=["order"])
+        log_event(
+            order, Kind.CREATED, actor="customer", public=True,
+            data={"prize": prize.code, "discount": str(quote.discount)} if prize is not None else None,
+        )
         if pickup:
             log_event(
                 order, Kind.STATUS, actor="system", public=True,
@@ -217,6 +235,7 @@ def submit_deposit(order: WebOrder, *, reference="", sender="", proof: Processed
         has_proof = proof is not None or DepositProof.objects.filter(order=order).exists()
         if not reference and not has_proof:
             raise ShopError("PROOF_REQUIRED", "Send the transfer reference number or a screenshot.")
+        ran_out = order.status == Status.EXPIRED
         order.deposit_reference = reference[:64]
         order.deposit_sender = sender.strip()[:120]
         order.deposit_submitted_at = timezone.now()
@@ -236,6 +255,15 @@ def submit_deposit(order: WebOrder, *, reference="", sender="", proof: Processed
             order, Kind.DEPOSIT_SUBMITTED, actor="customer", public=True,
             data={"reference": order.deposit_reference, "proof": proof is not None},
         )
+        # Back from having run out: the order takes its game prize back.
+        other = prizes.retake(order) if ran_out else ""
+        if other:
+            log_event(
+                order, Kind.NOTE, actor="system",
+                message=f"This order ran out before its deposit came, and its prize {order.prize_code} "
+                f"has since been used on order {other}.",
+                data={"prize": order.prize_code, "other_order": other},
+            )
         # A transfer to check: send the shop the order and the screenshot.
         alerts.alert_shop(order, alerts.DEPOSIT)
     return order
@@ -418,7 +446,8 @@ def sale_plan(order: WebOrder, price_mode: str | None = None) -> dict:
     Checkout always sells at the current price, so when a price has moved since
     the customer ordered, staff choose: ``quoted`` keeps the customer's price by
     discounting a rise (a price that dropped is simply charged lower), and
-    ``current`` charges today's.
+    ``current`` charges today's. A game prize the customer was promised comes
+    off as the sale's own discount (never more than the goods).
     """
     items = list(order.items.all())
     products = catalog.load_products(item.product_id for item in items)
@@ -445,11 +474,15 @@ def sale_plan(order: WebOrder, price_mode: str | None = None) -> dict:
             })
         charged = honoured if price_mode == "quoted" else current
         lines.append({"product": item.product_id, "quantity": item.quantity, "discount": current - charged})
-    total = honoured_total if price_mode == "quoted" else current_total
+    goods = honoured_total if price_mode == "quoted" else current_total
+    discount = min(order.discount, goods)
+    total = goods - discount
     deposit_applied = min(order.deposit_paid, total)
     return {
         "lines": lines,
         "changes": changes,
+        "goods": goods,
+        "discount": discount,
         "total": total,
         "quoted_total": quoted_total,
         "current_total": current_total,
@@ -491,7 +524,9 @@ def complete_order(
     The sale is paid by two tenders: the InstaPay deposit (MOBILE) and the
     balance by whatever the customer used. The delivery fee stays outside the
     sale. `request` is the staff member's API request; checkout reads the
-    signed-in user and the manager PIN from it, as it does at the till.
+    signed-in user and the manager PIN from it, as it does at the till. A game
+    prize is the sale's discount, authorised already by the super admin who
+    set the prizes, so it asks for no manager PIN of its own.
     """
     from apps.orders.serializers import OrderCreateSerializer
 
@@ -540,11 +575,12 @@ def complete_order(
                         {"product": l["product"], "quantity": str(l["quantity"]), "discount": str(l["discount"])}
                         for l in plan["lines"]
                     ],
+                    "discount": str(plan["discount"]),
                     "payments": [{**p, "amount": str(p["amount"])} for p in payments],
-                    "note": f"Web order {order.code}",
+                    "note": f"Web order {order.code}" + (f", prize {order.prize_code}" if order.prize_code else ""),
                     "terminal": getattr(django_settings, "SHOP_TERMINAL", ""),
                 },
-                context={"request": request},
+                context={"request": request, "authorised_discount": plan["discount"]},
             )
             try:
                 checkout.is_valid(raise_exception=True)
@@ -575,6 +611,7 @@ def complete_order(
             data={
                 "receipt": sale.receipt_number or "",
                 "sale_total": str(sale.total),
+                "discount": str(sale.discount),
                 "deposit_applied": str(deposit_applied),
                 "balance": str(balance),
                 "balance_method": order.balance_method,

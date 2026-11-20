@@ -9,9 +9,9 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 
 from django.db.models import Sum
 
-from . import catalog
+from . import catalog, prizes
 from .catalog import ProductInfo
-from .models import Listing, ShopSettings, WebOrder, WebOrderItem
+from .models import GamePrize, Listing, ShopSettings, WebOrder, WebOrderItem
 
 MONEY = Decimal("0.01")
 POUND = Decimal("1")
@@ -111,6 +111,9 @@ class Quote:
     fulfilment: str
     lines: list[QuoteLine] = field(default_factory=list)
     subtotal: Decimal = ZERO
+    # A game prize's share off the goods; zero on goods under its minimum.
+    discount: Decimal = ZERO
+    prize_code: str = ""
     delivery_fee: Decimal = ZERO
     total: Decimal = ZERO
     # Always zero for pickup.
@@ -188,8 +191,13 @@ def default_fulfilment(settings: ShopSettings) -> str:
     return WebOrder.Fulfilment.PICKUP
 
 
-def build_quote(raw_items, fulfilment: str | None, settings: ShopSettings | None = None) -> Quote:
-    """Price a cart against live prices and stock."""
+def build_quote(
+    raw_items, fulfilment: str | None, settings: ShopSettings | None = None, prize: GamePrize | None = None
+) -> Quote:
+    """Price a cart against live prices and stock, less a game prize when one
+    is given. The prize comes off the goods, and the deposit is a share of
+    what is left; free delivery and the minimum order go by the goods in
+    full."""
     settings = settings or ShopSettings.load()
     wanted = parse_items(raw_items)
 
@@ -230,9 +238,13 @@ def build_quote(raw_items, fulfilment: str | None, settings: ShopSettings | None
         quote.lines.append(line)
 
     quote.subtotal = sum((l.line_total for l in quote.lines if not l.issue), ZERO).quantize(MONEY)
+    if prize is not None:
+        quote.prize_code = prize.code
+        quote.discount = prizes.discount_for(prize, quote.subtotal)
+    goods = quote.subtotal - quote.discount
     quote.delivery_fee = delivery_fee_for(quote.subtotal, fulfilment, settings)
-    quote.total = quote.subtotal + quote.delivery_fee
-    quote.deposit = deposit_for(quote.subtotal, settings) if takes_deposit(fulfilment) else ZERO
+    quote.total = goods + quote.delivery_fee
+    quote.deposit = deposit_for(goods, settings) if takes_deposit(fulfilment) else ZERO
     quote.balance = quote.total - quote.deposit
 
     if not settings.ordering_enabled:
