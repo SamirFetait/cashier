@@ -412,6 +412,11 @@ website sells from the same products, stock and photos as the tills.
   by InstaPay and reports the reference; unpaid orders expire and release their items.
 - **Staff work them from the orders admin** with their cashier login (same roles: cashiers
   work orders; settings, catalogue, videos and refunds need a super admin).
+- **The cashier app does the same.** Cashiers work web orders on its Website Orders page.
+  Super admins get a **Website** tab instead, with the orders admin's pages in a navbar of its
+  own: board, all orders, website catalogue, videos, events, healthy swaps and settings. The
+  Products page shows whether each product is on the website and opens its page there, and
+  the category list links to each category's page.
 - **Hand-over rings up a normal sale** through `OrderCreateSerializer`: stock leaves through
   the ledger, a receipt number is issued, the deposit is a MOBILE tender, the balance is cash,
   card or wallet (cash lands in the open shift's drawer), and discounts need the manager PIN

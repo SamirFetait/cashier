@@ -9,6 +9,7 @@ import { useEffect, useRef, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import type { WebOrder, WebOrderStatus } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
 import { useI18n, type Messages } from "../i18n";
 import { money, needsStaff, useBoard } from "./api";
 
@@ -51,6 +52,9 @@ export function useWebOrderAlerts(): void {
   const board = useBoard();
   const navigate = useNavigate();
   const { t } = useI18n();
+  // Super admins work website orders under Website; cashiers on their own page.
+  const { isSuperadmin } = useAuth();
+  const ordersPage = isSuperadmin ? "/website" : "/web-orders";
   // What each open order looked like at the last poll; null until the first.
   const seen = useRef<Map<number, WebOrderStatus> | null>(null);
 
@@ -62,7 +66,7 @@ export function useWebOrderAlerts(): void {
 
     const open = (id: number, notificationId: string) => {
       notifications.hide(notificationId);
-      navigate(`/web-orders?order=${id}`);
+      navigate(`${ordersPage}?order=${id}`);
     };
 
     // Just signed in or started: one quiet summary of what is already waiting.
@@ -79,7 +83,7 @@ export function useWebOrderAlerts(): void {
           style: { cursor: "pointer", whiteSpace: "pre-line" },
           onClick: onBody(() => {
             notifications.hide(id);
-            navigate("/web-orders");
+            navigate(ordersPage);
           }),
         });
       }

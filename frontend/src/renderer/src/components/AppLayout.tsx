@@ -41,6 +41,8 @@ interface NavItem {
   label: keyof Messages["nav"];
   icon: ReactNode;
   adminOnly?: boolean;
+  /** Not for super admins, who have the same page elsewhere. */
+  cashierOnly?: boolean;
 }
 
 interface NavSection {
@@ -51,14 +53,22 @@ interface NavSection {
 
 // A cashier sees only what selling needs; the rest is for super admins.
 const NAV: NavSection[] = [
-  { items: [{ to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} />, adminOnly: true }] },
+  {
+    items: [
+      { to: "/", label: "dashboard", icon: <IconLayoutDashboard size={18} />, adminOnly: true },
+      // The whole website, as the orders admin has it: its orders, catalogue,
+      // videos, events, swaps and settings, behind a navbar of its own.
+      { to: "/website", label: "website", icon: <IconWorld size={18} />, adminOnly: true },
+    ],
+  },
   {
     title: "selling",
     items: [
       { to: "/scan", label: "scan", icon: <IconScan size={18} /> },
       { to: "/orders", label: "orders", icon: <IconReceipt size={18} /> },
-      // Every user works the website's orders: they are picked up at this till.
-      { to: "/web-orders", label: "webOrders", icon: <IconWorld size={18} /> },
+      // Cashiers work the website's orders too: they are picked up at this
+      // till. Super admins find them under Website.
+      { to: "/web-orders", label: "webOrders", icon: <IconWorld size={18} />, cashierOnly: true },
       { to: "/shift", label: "shift", icon: <IconCashRegister size={18} /> },
       { to: "/customers", label: "customers", icon: <IconUsers size={18} />, adminOnly: true },
     ],
@@ -103,8 +113,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // A section with nothing this user may open is left out, heading and all.
   const sections = NAV.map((section) => ({
     ...section,
-    items: section.items.filter((n) => !n.adminOnly || isSuperadmin),
+    items: section.items.filter((n) => (n.adminOnly ? isSuperadmin : !(n.cashierOnly && isSuperadmin))),
   })).filter((section) => section.items.length > 0);
+  // A page with pages of its own (/website/events) keeps its link lit.
+  const isActive = (to: string) =>
+    location.pathname === to || (to !== "/" && location.pathname.startsWith(`${to}/`));
 
   return (
     <AppShell
@@ -168,7 +181,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   to={n.to}
                   label={t.nav[n.label]}
                   leftSection={n.icon}
-                  active={location.pathname === n.to}
+                  active={isActive(n.to)}
                   onClick={() => opened && toggle()}
                   py={6}
                 />

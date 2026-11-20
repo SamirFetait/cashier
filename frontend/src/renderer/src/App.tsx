@@ -12,6 +12,7 @@ import { ScanSale } from "./pages/ScanSale";
 import { Labels } from "./pages/Labels";
 import { Orders } from "./pages/Orders";
 import { WebOrders } from "./pages/WebOrders";
+import { Website } from "./pages/Website";
 import { ShiftPage } from "./pages/ShiftPage";
 import { PrinterSettings } from "./pages/PrinterSettings";
 import { Reports } from "./pages/Reports";
@@ -54,6 +55,7 @@ function Screens(): ReactNode {
         <Route path="/orders" element={<Orders />} />
         <Route path="/web-orders" element={<WebOrders />} />
         <Route path="/shift" element={<ShiftPage />} />
+        {isSuperadmin && <Route path="/website/*" element={<Website />} />}
         {isSuperadmin && <Route path="/printer" element={<PrinterSettings />} />}
         {isSuperadmin && <Route path="/products" element={<Products />} />}
         {isSuperadmin && <Route path="/labels" element={<Labels />} />}

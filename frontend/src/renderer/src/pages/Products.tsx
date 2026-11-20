@@ -13,10 +13,12 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconCategory, IconEdit, IconPackageImport, IconPlus, IconUpload } from "@tabler/icons-react";
+import { IconCategory, IconEdit, IconPackageImport, IconPlus, IconStarFilled, IconUpload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -29,6 +31,9 @@ import { DeleteButton } from "../components/DeleteButton";
 import { IconButton } from "../components/IconButton";
 import { ProductThumb, productThumbUrl } from "../components/ProductThumb";
 import { useI18n } from "../i18n";
+import { siteLink, useListings, useSiteUrl, type ListingRow } from "../website/api";
+import { OpenOnSite } from "../website/CataloguePage";
+import { ListingDialog } from "../website/ListingDialog";
 
 interface FormState {
   id?: number;
@@ -80,7 +85,7 @@ class PhotoUploadError extends Error {
 
 export function Products() {
   const { isSuperadmin } = useAuth();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [restockOpen, restock] = useDisclosure(false);
@@ -111,6 +116,24 @@ export function Products() {
       (await api.get<Paginated<Storage>>("/storages/")).data.results,
     enabled: isSuperadmin,
   });
+  // How each product shows on the website, and where the website is.
+  const listings = useListings();
+  const site = useSiteUrl();
+  const [listing, setListing] = useState<ListingRow | null>(null);
+  const listingOf = useMemo(
+    () => new Map((listings.data ?? []).map((row) => [row.id, row])),
+    [listings.data]
+  );
+  // A category is on the website while one of its products is shown there.
+  const websiteCategories = useMemo(
+    () =>
+      new Set(
+        (products.data ?? [])
+          .filter((p) => p.is_active && p.category && listingOf.get(p.id)?.hidden === false)
+          .map((p) => p.category as number)
+      ),
+    [products.data, listingOf]
+  );
 
   const save = useMutation({
     mutationFn: async ({ f, photo }: { f: FormState; photo: PhotoState }) => {
@@ -250,6 +273,7 @@ export function Products() {
           opened={categoriesOpen}
           onClose={categoryManager.close}
           productCounts={productCounts}
+          onWebsite={websiteCategories}
         />
       )}
 
@@ -263,6 +287,7 @@ export function Products() {
               <Table.Th>{t.common.price}</Table.Th>
               <Table.Th>{t.products.inStorage}</Table.Th>
               <Table.Th>{t.common.status}</Table.Th>
+              <Table.Th>{t.website.column}</Table.Th>
               {isSuperadmin && <Table.Th>{t.common.actions}</Table.Th>}
             </Table.Tr>
           </Table.Thead>
@@ -280,6 +305,14 @@ export function Products() {
                   <Badge color={p.is_active ? "green" : "gray"}>
                     {p.is_active ? t.common.active : t.common.inactive}
                   </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <WebsiteCell
+                    row={p.is_active ? listingOf.get(p.id) : undefined}
+                    href={site ? siteLink(site, { kind: "product", id: p.id }, lang) : null}
+                    canEdit={isSuperadmin}
+                    onEdit={setListing}
+                  />
                 </Table.Td>
                 {isSuperadmin && (
                   <Table.Td>
@@ -426,6 +459,8 @@ export function Products() {
         </Stack>
       </Modal>
 
+      <ListingDialog row={listing} onClose={() => setListing(null)} />
+
       <Modal
         opened={restockOpen}
         onClose={restock.close}
@@ -451,5 +486,53 @@ export function Products() {
         </Stack>
       </Modal>
     </Stack>
+  );
+}
+
+/** A product's place on the website: shown or hidden (a star when featured),
+ * which opens how it shows there, and a link to its page. Inactive products
+ * are never on the website. */
+function WebsiteCell({
+  row,
+  href,
+  canEdit,
+  onEdit,
+}: {
+  row: ListingRow | undefined;
+  href: string | null;
+  canEdit: boolean;
+  onEdit: (row: ListingRow) => void;
+}) {
+  const { t } = useI18n();
+  if (!row) return <Text c="dimmed">—</Text>;
+  const state = row.hidden ? t.website.hiddenBadge : t.website.shownBadge;
+  const badge = (
+    <Badge
+      variant="light"
+      color={row.hidden ? "gray" : "teal"}
+      leftSection={row.featured ? <IconStarFilled size={11} color="var(--mantine-color-gold-6)" /> : undefined}
+    >
+      {state}
+    </Badge>
+  );
+  return (
+    <Group gap={4} wrap="nowrap">
+      {canEdit ? (
+        <Tooltip label={t.website.editListing} withArrow>
+          <UnstyledButton
+            onClick={() => onEdit(row)}
+            aria-label={`${t.website.editListing}: ${state}${row.featured ? ` · ${t.website.catalogue.featured}` : ""}`}
+          >
+            {badge}
+          </UnstyledButton>
+        </Tooltip>
+      ) : (
+        badge
+      )}
+      <OpenOnSite
+        href={row.hidden ? null : href}
+        label={row.hidden ? t.website.catalogue.hiddenNoLink : t.website.openProduct}
+      />
+    </Group>
   );
 }

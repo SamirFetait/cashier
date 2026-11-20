@@ -102,7 +102,7 @@ export function WebOrders() {
   );
 }
 
-function BoardView({ onOpen }: { onOpen: (id: number) => void }) {
+export function BoardView({ onOpen }: { onOpen: (id: number) => void }) {
   const { t } = useI18n();
   const board = useBoard();
   const now = useNow(1000);
@@ -234,7 +234,7 @@ function OrderCard({ order, now, onOpen }: { order: WebOrder; now: number; onOpe
   );
 }
 
-function SearchView({ onOpen }: { onOpen: (id: number) => void }) {
+export function SearchView({ onOpen }: { onOpen: (id: number) => void }) {
   const { t, formatDateTime } = useI18n();
   const w = t.webOrders;
   const [query, setQuery] = useState("");
