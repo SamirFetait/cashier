@@ -1,4 +1,4 @@
-import { Loader, Select } from "@mantine/core";
+import { Loader, Select, defaultOptionsFilter, type OptionsFilter } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -13,6 +13,19 @@ export const CATEGORIES_KEY = ["categories"];
 /** The option that adds the typed name as a new category; never a category id. */
 const NEW_CATEGORY = "new-category";
 
+/**
+ * The usual matches, led by what Enter should take: the category named
+ * exactly as typed, or else the option that adds the typed name.
+ */
+const typedNameFirst: OptionsFilter = (input) => {
+  const matches = defaultOptionsFilter(input);
+  const typed = input.search.trim().toLowerCase();
+  const index = matches.findIndex(
+    (o) => "value" in o && (o.value === NEW_CATEGORY || o.label.toLowerCase() === typed)
+  );
+  return index > 0 ? [matches[index], ...matches.slice(0, index), ...matches.slice(index + 1)] : matches;
+};
+
 /** All categories: for the product form's picker and the category manager. */
 export function useCategories() {
   return useQuery({
@@ -24,7 +37,8 @@ export function useCategories() {
 
 /**
  * The product form's category picker. A super admin can also type a name that
- * is not in the list and add it as a new category, which is then selected.
+ * is not in the list and add it as a new category, with Enter or the green
+ * option, and it is then selected.
  */
 export function CategorySelect({
   value,
@@ -78,6 +92,10 @@ export function CategorySelect({
         ...list.map((c) => ({ value: String(c.id), label: c.name })),
         ...(offerNew ? [{ value: NEW_CATEGORY, label: t.products.newCategory(typed) }] : []),
       ]}
+      // Typing highlights the first option, which Enter takes: so Enter picks
+      // the category typed, or creates it when there is none by that name.
+      filter={typedNameFirst}
+      selectFirstOptionOnChange
       value={value}
       // Picking the new-category option never becomes the value: it creates
       // the category, and onSuccess selects that.
