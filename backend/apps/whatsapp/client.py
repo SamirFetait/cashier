@@ -42,6 +42,28 @@ def get_status(timeout: float = 10) -> dict:
         raise WhatsAppError(f"WhatsApp service unreachable: {exc}") from exc
 
 
+def unlink(timeout: float = 60) -> dict:
+    """Unlink the paired account. The sidecar then shows a new QR.
+
+    Returns ``{"success": True, "confirmed": bool}``. ``confirmed`` is False
+    when WhatsApp did not answer the logout, so the phone may still list the
+    device under Linked devices.
+    """
+    try:
+        resp = requests.post(
+            f"{settings.WHATSAPP_SERVICE_URL}/unlink", headers=_headers(), timeout=timeout
+        )
+    except requests.RequestException as exc:
+        raise WhatsAppError(f"WhatsApp service unreachable: {exc}") from exc
+    if not resp.ok:
+        try:
+            reason = resp.json().get("error")
+        except ValueError:
+            reason = None
+        raise WhatsAppError(reason or f"WhatsApp service answered {resp.status_code}")
+    return resp.json()
+
+
 def send_message(number: str, message: str, media: dict | None = None) -> dict:
     """Send text, or a file with the text as its caption.
 

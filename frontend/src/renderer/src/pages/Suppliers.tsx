@@ -16,7 +16,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconBrandWhatsapp, IconEdit, IconPlus, IconQrcode } from "@tabler/icons-react";
+import { IconBrandWhatsapp, IconEdit, IconLinkOff, IconPlus, IconQrcode } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -47,6 +47,7 @@ export function Suppliers() {
   const [form, setForm] = useState<FormState>(empty);
   const [target, setTarget] = useState<Supplier | null>(null);
   const [message, setMessage] = useState("");
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
 
   const suppliers = useQuery({
     queryKey: ["suppliers"],
@@ -98,6 +99,33 @@ export function Suppliers() {
       notifications.show({ title: t.suppliers.error, message: detail, color: "red" });
     },
   });
+
+  // Unlinking drops the server from the phone's Linked devices; the status
+  // poll then shows the new QR for whichever phone links next.
+  const unlink = useMutation({
+    mutationFn: async () =>
+      (await api.post<{ success: boolean; confirmed: boolean }>("/whatsapp/unlink/")).data,
+    onSuccess: (result) => {
+      setConfirmUnlink(false);
+      notifications.show({
+        message: result.confirmed ? t.suppliers.unlinked : t.suppliers.unlinkedHere,
+        color: result.confirmed ? "green" : "yellow",
+      });
+      void qc.invalidateQueries({ queryKey: ["whatsapp-status"] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: t.suppliers.unlinkFailed,
+        message: err?.response?.data?.detail ?? t.suppliers.unreachable,
+        color: "red",
+      });
+    },
+  });
+
+  const closeQr = () => {
+    qr.close();
+    setConfirmUnlink(false);
+  };
 
   return (
     <Stack>
@@ -251,14 +279,45 @@ export function Suppliers() {
       </Modal>
 
       {/* WhatsApp pairing / status */}
-      <Modal opened={qrOpen} onClose={qr.close} title={t.suppliers.connection}>
+      <Modal opened={qrOpen} onClose={closeQr} title={t.suppliers.connection}>
         <Stack align="center">
           {status.isLoading && <Loader />}
           {status.isError && <Alert color="red">{t.suppliers.unreachable}</Alert>}
           {status.data?.connected && (
-            <Badge color="green" size="lg">
-              {t.suppliers.connected}
-            </Badge>
+            <>
+              <Badge color="green" size="lg">
+                {t.suppliers.connected}
+              </Badge>
+              {status.data.number && (
+                <Text size="sm" c="dimmed">
+                  {t.suppliers.linkedTo(ltr(`+${status.data.number}`))}
+                </Text>
+              )}
+              {confirmUnlink ? (
+                <>
+                  <Text size="sm" ta="center">
+                    {t.suppliers.unlinkConfirm}
+                  </Text>
+                  <Group>
+                    <Button variant="default" disabled={unlink.isPending} onClick={() => setConfirmUnlink(false)}>
+                      {t.common.cancel}
+                    </Button>
+                    <Button color="red" loading={unlink.isPending} onClick={() => unlink.mutate()}>
+                      {t.suppliers.unlink}
+                    </Button>
+                  </Group>
+                </>
+              ) : (
+                <Button
+                  color="red"
+                  variant="light"
+                  leftSection={<IconLinkOff size={16} />}
+                  onClick={() => setConfirmUnlink(true)}
+                >
+                  {t.suppliers.unlink}
+                </Button>
+              )}
+            </>
           )}
           {status.data && !status.data.connected && status.data.qr && (
             <>

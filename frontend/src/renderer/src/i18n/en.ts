@@ -447,6 +447,14 @@ export const en = {
     scanHint: "Open WhatsApp on your phone → Linked devices → Link a device, then scan:",
     qrAlt: "QR code for linking WhatsApp",
     waitingQr: "Waiting for the service to generate a QR…",
+    linkedTo: (phone: string) => `Linked to ${phone}`,
+    unlink: "Unlink",
+    unlinkConfirm:
+      "Unlink this WhatsApp from the cashier? Order alerts and supplier messages stop until a phone scans the new QR code.",
+    unlinked: "WhatsApp unlinked. A new QR code is on its way.",
+    unlinkedHere:
+      "Unlinked here, but WhatsApp didn't confirm it. If the phone still lists the cashier under Linked devices, log it out there too.",
+    unlinkFailed: "Couldn't unlink WhatsApp",
   },
   users: {
     saved: "User saved",

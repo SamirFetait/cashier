@@ -1,14 +1,19 @@
+import logging
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import IsSuperAdmin
 from apps.suppliers.models import Supplier
 
-from .client import WhatsAppError, get_status, send_message
+from .client import WhatsAppError, get_status, send_message, unlink
 from .models import WhatsAppMessage
 from .serializers import WhatsAppMessageSerializer
+
+log = logging.getLogger(__name__)
 
 
 class WhatsAppStatusView(APIView):
@@ -24,6 +29,21 @@ class WhatsAppStatusView(APIView):
                 {"connected": False, "error": str(exc)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+
+
+class WhatsAppUnlinkView(APIView):
+    """Unlink the WhatsApp account the server sends from (order alerts,
+    supplier messages). A new QR follows, to link this or another phone."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        try:
+            result = unlink()
+        except WhatsAppError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        log.info("WhatsApp unlinked by %s", request.user)
+        return Response(result)
 
 
 class SupplierWhatsAppView(APIView):

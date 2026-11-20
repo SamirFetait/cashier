@@ -165,6 +165,8 @@ npm start
 
 Then in the desktop app open **Suppliers → WhatsApp setup** and scan the QR with
 WhatsApp (Linked devices → Link a device). The session persists, so you only do this once.
+To switch phones, a super admin clicks **Unlink** in the same window: WhatsApp drops the
+cashier from the phone's Linked devices, and a new QR appears for the next one.
 
 ### 3) Frontend (Electron desktop)
 

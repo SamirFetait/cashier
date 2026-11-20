@@ -239,6 +239,8 @@ export interface LowStockRow {
 
 export interface WhatsAppStatus {
   connected: boolean;
+  /** The linked account's own number (digits), while connected. */
+  number?: string | null;
   qr: string | null;
   error?: string | null;
 }
