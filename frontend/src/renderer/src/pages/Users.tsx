@@ -18,8 +18,8 @@ import { IconEdit, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { api } from "../api/client";
-import type { Paginated, Role, User } from "../api/types";
+import { api, fetchAll } from "../api/client";
+import type { Role, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { DeleteButton } from "../components/DeleteButton";
 import { IconButton } from "../components/IconButton";
@@ -56,8 +56,7 @@ export function Users() {
 
   const users = useQuery({
     queryKey: ["users"],
-    queryFn: async () =>
-      (await api.get<Paginated<User>>("/users/?page_size=500")).data.results,
+    queryFn: () => fetchAll<User>("/users/"),
   });
 
   const save = useMutation({

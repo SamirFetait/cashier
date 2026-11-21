@@ -16,7 +16,7 @@ import { IconEdit, IconHistory, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { api } from "../api/client";
+import { api, fetchAll } from "../api/client";
 import type { Customer, Order, Paginated } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { DeleteButton } from "../components/DeleteButton";
@@ -44,8 +44,7 @@ export function Customers() {
 
   const customers = useQuery({
     queryKey: ["customers"],
-    queryFn: async () =>
-      (await api.get<Paginated<Customer>>("/customers/?page_size=500")).data.results,
+    queryFn: () => fetchAll<Customer>("/customers/"),
   });
 
   const orderHistory = useQuery({

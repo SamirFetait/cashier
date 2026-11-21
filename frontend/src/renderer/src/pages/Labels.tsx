@@ -19,7 +19,7 @@ import { IconBarcode, IconPlus, IconPrinter, IconSearch } from "@tabler/icons-re
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "../api/client";
+import { api, fetchAll } from "../api/client";
 import type { Paginated, Product, Storage } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
 import { IconButton } from "../components/IconButton";
@@ -67,8 +67,7 @@ export function Labels() {
   // The till's list: labels are for what is on sale.
   const products = useQuery({
     queryKey: ["products", "active"],
-    queryFn: async () =>
-      (await api.get<Paginated<Product>>("/products/?is_active=true&page_size=500")).data.results,
+    queryFn: () => fetchAll<Product>("/products/?is_active=true"),
   });
   const storages = useQuery({
     queryKey: ["storages"],

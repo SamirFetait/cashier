@@ -2,8 +2,8 @@ import { notifications } from "@mantine/notifications";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { api } from "../api/client";
-import type { Customer, Order, Paginated, Product, Shift } from "../api/types";
+import { api, fetchAll } from "../api/client";
+import type { Customer, Order, Product, Shift } from "../api/types";
 import { useI18n } from "../i18n";
 import { printOrderReceipt } from "../receipt/receipt";
 import { enqueue, isOfflineError, newClientUuid } from "./offlineQueue";
@@ -142,14 +142,11 @@ export function useSale(options: { onCompleted?: (order: Order, offline: boolean
 
   const products = useQuery({
     queryKey: ["products", "active"],
-    queryFn: async () =>
-      (await api.get<Paginated<Product>>("/products/?is_active=true&page_size=500")).data
-        .results,
+    queryFn: () => fetchAll<Product>("/products/?is_active=true"),
   });
   const customers = useQuery({
     queryKey: ["customers"],
-    queryFn: async () =>
-      (await api.get<Paginated<Customer>>("/customers/?page_size=500")).data.results,
+    queryFn: () => fetchAll<Customer>("/customers/"),
   });
 
   useEffect(() => {

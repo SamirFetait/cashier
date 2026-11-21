@@ -22,7 +22,7 @@ import { IconCategory, IconEdit, IconPackageImport, IconPlus, IconStarFilled, Ic
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { api } from "../api/client";
+import { api, fetchAll } from "../api/client";
 import type { Paginated, Product, Storage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { CategoryManager } from "../components/CategoryManager";
@@ -107,8 +107,7 @@ export function Products() {
 
   const products = useQuery({
     queryKey: ["products"],
-    queryFn: async () =>
-      (await api.get<Paginated<Product>>("/products/?page_size=500")).data.results,
+    queryFn: () => fetchAll<Product>("/products/"),
   });
   const storages = useQuery({
     queryKey: ["storages"],

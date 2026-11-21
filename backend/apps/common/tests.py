@@ -1,7 +1,8 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from rest_framework.test import APITestCase
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory, APITestCase
 
 from apps.customers.models import Customer
 from apps.inventory.models import Storage, apply_stock_change
@@ -10,8 +11,33 @@ from apps.shifts.models import Shift
 from apps.suppliers.models import Supplier
 
 from .models import AuditLog
+from .pagination import Pagination
 
 User = get_user_model()
+
+
+class PaginationTests(APITestCase):
+    """Lists come 25 a page unless the caller asks for more, up to 500."""
+
+    def setUp(self):
+        self.client.force_authenticate(
+            User.objects.create_user(username="cash", password="pass12345", role=User.Role.CASHIER)
+        )
+        Category.objects.bulk_create([Category(name=f"Category {i:02}") for i in range(30)])
+
+    def test_page_size_is_honoured(self):
+        data = self.client.get("/api/categories/?page_size=30").json()
+        self.assertEqual(len(data["results"]), 30)
+        self.assertIsNone(data["next"])
+
+    def test_without_page_size_a_page_is_still_25(self):
+        data = self.client.get("/api/categories/").json()
+        self.assertEqual(len(data["results"]), 25)
+        self.assertIsNotNone(data["next"])
+
+    def test_page_size_is_capped(self):
+        request = Request(APIRequestFactory().get("/", {"page_size": "100000"}))
+        self.assertEqual(Pagination().get_page_size(request), 500)
 
 
 class DeletionTests(APITestCase):

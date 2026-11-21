@@ -3,8 +3,8 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { api } from "../api/client";
-import type { Category, Paginated } from "../api/types";
+import { api, fetchAll } from "../api/client";
+import type { Category } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n";
 import classes from "./CategorySelect.module.css";
@@ -30,8 +30,7 @@ const typedNameFirst: OptionsFilter = (input) => {
 export function useCategories() {
   return useQuery({
     queryKey: CATEGORIES_KEY,
-    queryFn: async () =>
-      (await api.get<Paginated<Category>>("/categories/?page_size=500")).data.results,
+    queryFn: () => fetchAll<Category>("/categories/"),
   });
 }
 

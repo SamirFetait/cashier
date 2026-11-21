@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
 import { platform } from "../platform";
+import type { Paginated } from "./types";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
@@ -65,3 +66,27 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/** Items per request in fetchAll: the most the server hands out in one page. */
+const WHOLE_LIST_PAGE = 500;
+
+/**
+ * Every item of a list, page after page: for the lists the app needs whole,
+ * such as the till's products (scans are matched against them), customers or
+ * categories. That is one request until a list outgrows a page.
+ *
+ * Pages are counted here instead of following the server's `next` link,
+ * which carries the scheme and host the server sees (plain http behind a
+ * tunnel or proxy).
+ */
+export async function fetchAll<T>(path: string): Promise<T[]> {
+  const join = path.includes("?") ? "&" : "?";
+  const items: T[] = [];
+  for (let page = 1; ; page++) {
+    const { data } = await api.get<Paginated<T>>(
+      `${path}${join}page=${page}&page_size=${WHOLE_LIST_PAGE}`
+    );
+    items.push(...data.results);
+    if (!data.next || data.results.length === 0) return items;
+  }
+}
