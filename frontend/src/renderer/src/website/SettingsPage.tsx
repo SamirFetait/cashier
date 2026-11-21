@@ -344,10 +344,12 @@ function AlertsCheck({ whatsapp }: { whatsapp: NonNullable<WebsiteHealth["whatsa
   const { t } = useI18n();
   const s = t.website.settings;
   const ok = whatsapp.alerts && whatsapp.connected && !whatsapp.same_number;
+  const cloud = whatsapp.provider === "cloud";
   let detail: string;
   if (!whatsapp.alerts) detail = s.alertsOff;
-  else if (!whatsapp.connected) detail = s.alertsDown;
-  else if (whatsapp.same_number) detail = s.alertsSelf;
+  else if (!whatsapp.connected) detail = cloud ? s.alertsCloudDown(whatsapp.error) : s.alertsDown;
+  else if (whatsapp.same_number) detail = cloud ? s.alertsCloudSelf : s.alertsSelf;
+  else if (cloud) detail = s.alertsCloudRoute(whatsapp.from, whatsapp.to);
   else detail = s.alertsRoute(whatsapp.from, whatsapp.to);
   return <Check ok={ok || !whatsapp.alerts} label={s.alerts} detail={detail} />;
 }

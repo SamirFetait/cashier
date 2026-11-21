@@ -427,22 +427,17 @@ export const en = {
   },
   suppliers: {
     saved: "Supplier saved",
-    sent: "WhatsApp sent",
-    delivered: (name: string) => `Message delivered to ${name}`,
-    sendFailed: "Send failed (is WhatsApp paired?)",
-    error: "WhatsApp error",
+    openChat: "Open the chat in WhatsApp",
     setup: "WhatsApp setup",
     add: "Add supplier",
     edit: "Edit supplier",
     delete: "Delete supplier",
     inUse: "This supplier has purchase orders, so it can't be deleted.",
-    messageTitle: (name: string) => `WhatsApp ${name}`,
-    to: (phone: string) => `To: ${phone}`,
-    message: "Message",
-    messagePlaceholder: "Hello, we'd like to reorder…",
-    send: "Send",
     connection: "WhatsApp connection",
     unreachable: "WhatsApp service is not reachable. Is it running?",
+    cloudDown: (error: string) => `Meta's WhatsApp API refused: ${error}`,
+    cloudSender: (phone: string) =>
+      `Order alerts go out from ${phone} through WhatsApp's official API (Meta), so there is no phone to link here.`,
     connected: "Connected",
     scanHint: "Open WhatsApp on your phone → Linked devices → Link a device, then scan:",
     qrAlt: "QR code for linking WhatsApp",
@@ -450,7 +445,7 @@ export const en = {
     linkedTo: (phone: string) => `Linked to ${phone}`,
     unlink: "Unlink",
     unlinkConfirm:
-      "Unlink this WhatsApp from the cashier? Order alerts and supplier messages stop until a phone scans the new QR code.",
+      "Unlink this WhatsApp from the cashier? Order alerts stop until a phone scans the new QR code.",
     unlinked: "WhatsApp unlinked. A new QR code is on its way.",
     unlinkedHere:
       "Unlinked here, but WhatsApp didn't confirm it. If the phone still lists the cashier under Linked devices, log it out there too.",
@@ -931,7 +926,7 @@ export const en = {
       alerts: "WhatsApp order alerts",
       alertsOn: "Send each new order to WhatsApp",
       alertsHint:
-        "Every order when it's placed, and deliveries again when the customer reports the deposit (with the transfer screenshot). Sent from the WhatsApp account paired under Suppliers → WhatsApp setup.",
+        "Every order when it's placed, and deliveries again when the customer reports the deposit (with the transfer screenshot). The server sends them through WhatsApp's official API (Meta) when it is set up, so they arrive even with the shop's PCs off; otherwise from the WhatsApp account paired under Suppliers → WhatsApp setup.",
       alertNumber: "Number that receives the alerts",
       alertNumberHint: "Leave empty to use the store WhatsApp number.",
       alertsOff: "Off",
@@ -940,6 +935,10 @@ export const en = {
         "The WhatsApp service is not connected, so alerts are not being sent. Start it and pair it under Suppliers → WhatsApp setup.",
       alertsSelf:
         'WhatsApp is paired with the same number the alerts go to, so they land in "Message yourself" and no phone rings. Set another receiving number, or pair another account.',
+      alertsCloudRoute: (from: string, to: string) => `From +${from} to +${to}, through WhatsApp's official API`,
+      alertsCloudDown: (error: string) => `WhatsApp's official API can't send them yet: ${error}`,
+      alertsCloudSelf:
+        "The alerts would go to the number that sends them, and WhatsApp's API can't message itself. Set another receiving number.",
       games: "Games on the website",
       gamesHint: "A game switched off leaves the website: its card and its page. With every game off, the games section goes too.",
       game: {

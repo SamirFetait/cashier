@@ -154,7 +154,7 @@ deli products (so weighed selling can be tried).
 4. **Orders** — look up the sale, reprint it, or void/refund it (PIN `4321`).
 5. **Shift & Drawer → Close shift** — enter a blind count and compare against expected.
 
-### 2) WhatsApp sidecar (optional — needed only for the WhatsApp feature)
+### 2) WhatsApp sidecar (optional — sends the website's order alerts when Meta's Cloud API is not set up)
 
 ```bash
 cd whatsapp-service
@@ -167,6 +167,11 @@ Then in the desktop app open **Suppliers → WhatsApp setup** and scan the QR wi
 WhatsApp (Linked devices → Link a device). The session persists, so you only do this once.
 To switch phones, a super admin clicks **Unlink** in the same window: WhatsApp drops the
 cashier from the phone's Linked devices, and a new QR appears for the next one.
+
+Alerts that must arrive with every PC at the shop off go through Meta's Cloud API instead,
+from the server: see [WhatsApp order alerts through Meta's Cloud API](#whatsapp-order-alerts-through-metas-cloud-api).
+A supplier's **WhatsApp** button uses neither: it opens that supplier's chat in WhatsApp on the
+PC, from the shop's own number.
 
 ### 3) Frontend (Electron desktop)
 
@@ -282,7 +287,7 @@ each day's status (`SENT` / `PENDING` / `FAILED`), attempts and errors.
 | Margin / cashier reports  | Yes         | —                          |
 | CSV export, audit log     | Yes         | —                          |
 | Suppliers                 | CRUD        | Read                       |
-| Send WhatsApp             | Yes         | Yes                        |
+| Supplier's WhatsApp chat  | Yes         | Yes                        |
 
 ## API overview
 
@@ -330,7 +335,7 @@ page, gives up and flies off. While `DEBUG` is on, Django shows its own debug pa
 ## Tests
 
 ```bash
-cd backend && python manage.py test --parallel 4   # 267 tests, ~70s
+cd backend && python manage.py test --parallel 4   # 338 tests, ~85s
 cd hq && python manage.py test                     # HQ: ingest auth, upsert, dashboard access
 cd frontend && npx tsc --noEmit -p tsconfig.web.json   # renderer
 cd frontend && npx tsc --noEmit -p tsconfig.node.json  # main + preload
@@ -434,14 +439,140 @@ website sells from the same products, stock and photos as the tills.
   any other.
 - Web sales appear in Orders, reports and the HQ daily report like any other sale, with the
   note "Web order FK-...".
+- **WhatsApp alerts.** Every order sends the shop a WhatsApp the moment it is placed, and a
+  delivery sends another when the customer reports the deposit, with the transfer screenshot
+  (`apps/webshop/alerts.py`). They go to the number in the website settings (the store number
+  unless another is set): through Meta's Cloud API when it is set up, straight from the
+  server, so they arrive with every PC at the shop off (see
+  [below](#whatsapp-order-alerts-through-metas-cloud-api)); otherwise from the account paired
+  with the sidecar. Website → Settings checks that they can get through, and every one is
+  logged (`WhatsAppMessage`, in the Django admin), sent or failed.
 
 Configure it in `backend/.env` (see `.env.example`): `SHOP_SITE_URL`, `SHOP_ORDERS_URL` (both
 are allowed through CORS automatically), and optionally `SHOP_STORAGE_ID`, `SHOP_TERMINAL`,
 `SHOP_VIDEO_MAX_MB`. Uploaded videos are stored under `MEDIA_ROOT` and streamed from `/media/`.
 
-**The server must be reachable from the internet** for the website to work, e.g. as
+**The server must be reachable from the internet** for the website to work: run it on cPanel
+(see [The server on cPanel](#the-server-on-cpanel)), or keep it at the shop and publish it as
 `api.fatheetkheer.com` through a Cloudflare Tunnel (add that name to `ALLOWED_HOSTS` and set
-`SHOP_NUM_PROXIES=1`). The fatheet-kheer README has the deployment steps.
+`SHOP_NUM_PROXIES=1`; the fatheet-kheer README has those steps).
+
+## WhatsApp order alerts through Meta's Cloud API
+
+With the Cloud API set up, the server hands the website's order alerts to Meta over HTTPS, so
+they arrive with every PC at the shop off, and the sidecar is not needed for them. Meta delivers
+a business's messages only as templates it has approved, so each alert is a fixed Arabic
+template with the order filled in (`apps/webshop/alerts.py`): a new pickup, a new delivery, and
+a reported deposit. The deposit one comes under the transfer screenshot when there is one, and
+carries what checking the transfer needs (the address and items were in the first alert). If
+the screenshot cannot go, the alert still goes as text. Meta charges each alert at its utility
+rate for Egypt (see Meta's rate card); a busy or briefly unreachable Meta is tried again.
+
+One-time setup:
+
+1. **A number to send from**, not on WhatsApp: a new SIM is simplest. The alerts go to the
+   shop's WhatsApp Business number (+20 15 53211120, or the number set in Website → Settings),
+   and a number cannot message itself. Keep the shop's number off the API: Meta takes a WhatsApp
+   Business app number onto it only once it is deleted from the app, catalogue and chats
+   included, unless onboarded through a Meta partner that offers "coexistence".
+2. **A Meta app**: at [developers.facebook.com](https://developers.facebook.com) create an app of
+   type Business, add the **WhatsApp** product and connect a WhatsApp Business Account. Under
+   WhatsApp → API Setup add the number and verify it by SMS or call. Note the **Phone number
+   ID** and **WhatsApp Business Account ID** shown there, and the **App ID**.
+3. **In WhatsApp Manager** ([business.facebook.com](https://business.facebook.com)): set the
+   number's display name (e.g. فاتحة خير) and **add a payment method**; without one Meta
+   delivers no template.
+4. **A token that does not expire**: Business settings → Users → System users → Add (Admin).
+   Assign it the app and the WhatsApp account (full control), then Generate token for the app
+   with `whatsapp_business_messaging` and `whatsapp_business_management`, set to never expire.
+   Keep it only in `.env`: it can send as the shop.
+5. **In `backend/.env`** (on cPanel, the server's `.env`), then restart the server:
+
+   ```
+   WHATSAPP_CLOUD_TOKEN=<the system user's token>
+   WHATSAPP_CLOUD_PHONE_ID=<Phone number ID>
+   WHATSAPP_CLOUD_WABA_ID=<WhatsApp Business Account ID>
+   WHATSAPP_CLOUD_APP_ID=<App ID>
+   ```
+
+6. **Templates, then a test**:
+
+   ```bash
+   python manage.py whatsapp_cloud templates   # once: submits them for Meta's review
+   python manage.py whatsapp_cloud status      # the sending number, where alerts go, each template's status
+   python manage.py whatsapp_cloud test        # a sample alert to the alert number (or --to 01xxxxxxxxx)
+   ```
+
+   Meta reviews within minutes, at most a day. Website → Settings in the cashier app turns green
+   once the three templates an alert needs are approved.
+
+To change an alert's wording, change it in `alerts.py` and edit that template the same way in
+WhatsApp Manager (Meta reviews it again), or give it a new name and run `whatsapp_cloud
+templates`. Without `WHATSAPP_CLOUD_TOKEN` and `WHATSAPP_CLOUD_PHONE_ID`, alerts go through the
+sidecar as before.
+
+## The server on cPanel
+
+The backend runs on a cPanel host as a Python app, so the website and the tills reach it at
+`https://api.fatheetkheer.com` whether or not anything at the shop is on. The plan needs **Setup
+Python App** (Python 3.10 or newer, 3.12 if offered), **PostgreSQL Databases**, **Terminal** (or
+SSH) and **Cron Jobs**. The WhatsApp sidecar cannot run there (it keeps Chromium running day and
+night), so order alerts go through [Meta's Cloud API](#whatsapp-order-alerts-through-metas-cloud-api).
+
+1. **Subdomain**: Domains → create `api.fatheetkheer.com`, and turn on AutoSSL for it.
+2. **Database**: PostgreSQL Databases → create a database and a user, and add the user to it.
+3. **Code**: put this repo's `backend/` folder in your home folder, outside `public_html`, e.g.
+   `~/cashier/backend` (Git Version Control, or upload it).
+4. **Python app**: Setup Python App → Create: Python 3.12, application root `cashier/backend`,
+   application URL `api.fatheetkheer.com`, startup file `passenger_wsgi.py`, entry point
+   `application`.
+5. **Settings**: create `~/cashier/backend/.env` (the server reads it by itself):
+
+   ```
+   DEBUG=False
+   SECRET_KEY=<a long random string>
+   ALLOWED_HOSTS=api.fatheetkheer.com
+   DATABASE_URL=postgres://<db user>:<password>@localhost:5432/<database>
+   SHOP_SITE_URL=https://fatheetkheer.com
+   SHOP_ORDERS_URL=https://orders.fatheetkheer.com
+   SHOP_NUM_PROXIES=0     # 1 when the subdomain goes through Cloudflare's proxy (orange cloud)
+   STATIC_ROOT=/home/<cpanel user>/api.fatheetkheer.com/static
+   MEDIA_ROOT=/home/<cpanel user>/cashier/media
+   WHATSAPP_CLOUD_TOKEN=...   # and the other Cloud API settings, above
+   ```
+
+6. **Install**: in Terminal, run the command Setup Python App shows at the top of the app's page
+   (it enters the app's virtualenv and folder), then:
+
+   ```bash
+   pip install -r requirements.txt
+   python manage.py migrate
+   python manage.py collectstatic --noinput
+   python manage.py createsuperuser
+   ```
+
+   Restart the app in Setup Python App. `https://api.fatheetkheer.com/api/` should answer with
+   JSON saying you are not signed in.
+7. **Cron Jobs**, only with HQ reporting: once a day at `REPORT_TIME`,
+   `cd ~/cashier/backend && <the virtualenv's python> manage.py send_daily_report`.
+8. **Tills**: set `VITE_API_BASE_URL=https://api.fatheetkheer.com/api` in `frontend/.env` and
+   publish a release ([RELEASE.md](RELEASE.md)). Every till switches as it updates, so move the
+   data first. Installed tills need no CORS setting; a dev run (`npm run dev`) against this
+   server needs `CORS_ALLOWED_ORIGINS=http://localhost:5173`.
+
+**Moving data** from a server already in use, while no till is selling: on the old one
+`python manage.py dumpdata --natural-foreign --natural-primary -e contenttypes -e auth.permission
+-e sessions -o data.json`, and on cPanel, after `migrate`, `python manage.py loaddata data.json`.
+Copy the old `MEDIA_ROOT` (website videos) too.
+
+**Updating**: put the new code in place, then in the virtualenv run `pip install -r
+requirements.txt`, `python manage.py migrate` and `python manage.py collectstatic --noinput`,
+and restart the app (Setup Python App, or `touch tmp/restart.txt` in the application root).
+
+With the server online rather than on the shop's network, the tills need the internet for
+everything except ringing up sales, which they bank offline and send when it is back. If a
+website video will not upload, the host's upload limit (often ModSecurity) is lower than
+`SHOP_VIDEO_MAX_MB`: raise it, or switch ModSecurity off for the API subdomain.
 
 ## Not yet implemented
 
@@ -455,7 +586,7 @@ are allowed through CORS automatically), and optionally `SHOP_STORAGE_ID`, `SHOP
 ## Notes
 
 - whatsapp-web.js is **unofficial** (drives WhatsApp Web via Puppeteer) and can break on WhatsApp
-  updates; it is isolated in its own service so POS is never affected. For high volume consider
-  the official WhatsApp Business Cloud API.
+  updates; it is isolated in its own service so POS is never affected. Order alerts can go
+  through Meta's official Cloud API instead, which needs no sidecar (see above).
 - Local dev uses SQLite; the Docker stack uses PostgreSQL. The backend is DB-agnostic via
   `DATABASE_URL`.

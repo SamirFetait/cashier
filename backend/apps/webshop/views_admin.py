@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsSuperAdmin
 from apps.products.models import Product
 from apps.whatsapp import client as whatsapp_client
+from apps.whatsapp import cloud
 
 from . import alerts, catalog, media, phones, pricing, services
 from .errors import ShopError, ShopView
@@ -324,21 +325,52 @@ class HealthView(AdminView):
 
 def _whatsapp_health(settings: ShopSettings) -> dict:
     """Whether order alerts can reach the shop. A paired account messaging
-    its own number lands in "Message yourself", which rings no phone."""
+    its own number lands in "Message yourself", which rings no phone, and the
+    Cloud API cannot message its own number at all."""
     to = alerts.alert_number(settings)
-    try:
-        status = whatsapp_client.get_status(timeout=3)
-        connected, sender, error = bool(status.get("connected")), status.get("number") or "", ""
-    except whatsapp_client.WhatsAppError as exc:
-        connected, sender, error = False, "", str(exc)
+    if cloud.configured():
+        provider = "cloud"
+        connected, sender, error = _cloud_health()
+    else:
+        provider = "sidecar"
+        try:
+            status = whatsapp_client.get_status(timeout=3)
+            connected, sender, error = bool(status.get("connected")), status.get("number") or "", ""
+        except whatsapp_client.WhatsAppError as exc:
+            connected, sender, error = False, "", str(exc)
     return {
         "alerts": settings.whatsapp_alerts,
+        "provider": provider,
         "to": to,
         "connected": connected,
         "from": sender,
         "same_number": bool(sender) and sender == to,
         "error": error,
     }
+
+
+def _cloud_health() -> tuple[bool, str, str]:
+    """Ready, the sending number (digits), and what is wrong: Meta knows the
+    number, and every template an alert needs is approved (checked when the
+    business account's ID is set)."""
+    try:
+        sender = cloud.sending_number(timeout=5)
+    except cloud.CloudError as exc:
+        return False, "", str(exc)
+    if not django_settings.WHATSAPP_CLOUD_WABA_ID:
+        return True, sender, ""
+    try:
+        statuses = cloud.template_statuses(alerts.LANGUAGE, timeout=5)
+    except cloud.CloudError as exc:
+        return False, sender, str(exc)
+    waiting = [
+        f"{name} ({statuses.get(name) or 'missing'})"
+        for name in alerts.REQUIRED_TEMPLATES
+        if statuses.get(name) != "APPROVED"
+    ]
+    if waiting:
+        return False, sender, "Templates Meta has not approved: " + ", ".join(waiting)
+    return True, sender, ""
 
 
 # --- Website catalogue ------------------------------------------------------

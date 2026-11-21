@@ -99,7 +99,9 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+# Where collectstatic puts the admin's CSS and scripts. On cPanel: the API
+# subdomain's document root plus /static, so the web server serves them itself.
+STATIC_ROOT = Path(env("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -159,6 +161,19 @@ CORS_ALLOW_CREDENTIALS = True
 WHATSAPP_SERVICE_URL = env("WHATSAPP_SERVICE_URL", default="http://localhost:3001")
 WHATSAPP_SHARED_SECRET = env("WHATSAPP_SHARED_SECRET", default="")
 DEFAULT_COUNTRY_CODE = env("DEFAULT_COUNTRY_CODE")
+
+# --- WhatsApp Cloud API (Meta's official, hosted API) ---
+# With a token and the sending number's ID set, website order alerts go out
+# through it, straight from this server, so they arrive even when every PC at
+# the shop is off. Without them they go through the sidecar above. See the
+# README, "WhatsApp order alerts through Meta's Cloud API".
+WHATSAPP_CLOUD_TOKEN = env("WHATSAPP_CLOUD_TOKEN", default="")
+WHATSAPP_CLOUD_PHONE_ID = env("WHATSAPP_CLOUD_PHONE_ID", default="")
+# The WhatsApp Business Account: to create and check the alert templates.
+WHATSAPP_CLOUD_WABA_ID = env("WHATSAPP_CLOUD_WABA_ID", default="")
+# The Meta app: only to create the template that carries the transfer screenshot.
+WHATSAPP_CLOUD_APP_ID = env("WHATSAPP_CLOUD_APP_ID", default="")
+WHATSAPP_CLOUD_API_VERSION = env("WHATSAPP_CLOUD_API_VERSION", default="v26.0")
 
 # --- Branch identity + HQ (head office) reporting ---
 # Each POS installation is one branch. These identify it to the central HQ.

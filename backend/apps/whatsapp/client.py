@@ -1,5 +1,5 @@
 """Thin HTTP client for the whatsapp-service Node sidecar."""
-import re
+import unicodedata
 
 import requests
 from django.conf import settings
@@ -13,12 +13,15 @@ def normalize_number(raw: str) -> str:
     """Return a digits-only international number (no '+', no separators).
 
     Handles common local formats by stripping a leading 0 and prepending the
-    configured default country code.
+    configured default country code. A 00 prefix is the international one,
+    and Arabic digits count as digits.
     """
-    digits = re.sub(r"\D", "", raw or "")
+    digits = "".join(str(unicodedata.decimal(c)) for c in str(raw or "") if c.isdecimal())
     cc = settings.DEFAULT_COUNTRY_CODE
     if not digits:
         return digits
+    if digits.startswith("00"):
+        return digits[2:]
     if cc and digits.startswith("0"):
         digits = cc + digits[1:]
     elif cc and not digits.startswith(cc) and len(digits) <= 10:

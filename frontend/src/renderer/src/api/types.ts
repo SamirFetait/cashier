@@ -59,6 +59,8 @@ export interface Supplier {
   id: number;
   name: string;
   phone_number: string;
+  /** The number as wa.me wants it: digits, country code first. */
+  whatsapp: string;
   address: string;
   notes: string;
   created_at: string;
@@ -238,8 +240,10 @@ export interface LowStockRow {
 }
 
 export interface WhatsAppStatus {
+  /** How order alerts go out: Meta's Cloud API, or the sidecar's linked account. */
+  provider?: "cloud" | "sidecar";
   connected: boolean;
-  /** The linked account's own number (digits), while connected. */
+  /** The sending number (digits), while connected. */
   number?: string | null;
   qr: string | null;
   error?: string | null;

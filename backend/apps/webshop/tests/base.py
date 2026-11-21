@@ -47,11 +47,15 @@ def make_product(name, price, *, stock=None, storage=None, category=None, unit="
 class ShopTestCase(TestCase):
     def setUp(self):
         cache.clear()  # rate limits, the catalogue cache and the expiry guard
-        # Never reach a real WhatsApp sidecar; tests that care patch these again.
+        # Never reach a real WhatsApp sidecar, nor Meta's Cloud API (even with
+        # its keys in .env); tests that care patch these again.
         for target in ("apps.whatsapp.client.get_status", "apps.webshop.alerts.send_message"):
             patcher = mock.patch(target, side_effect=WhatsAppError("not running in tests"))
             patcher.start()
             self.addCleanup(patcher.stop)
+        patcher = mock.patch("apps.whatsapp.cloud.configured", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.admin_user = User.objects.create_user(
             "samir", password=PASSWORD, role=User.Role.SUPERADMIN, is_superuser=True, is_staff=True
         )

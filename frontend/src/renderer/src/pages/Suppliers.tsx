@@ -18,6 +18,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconBrandWhatsapp, IconEdit, IconLinkOff, IconPlus, IconQrcode } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AxiosError } from "axios";
 import { useState } from "react";
 
 import { api, fetchAll } from "../api/client";
@@ -26,6 +27,7 @@ import { useAuth } from "../auth/AuthContext";
 import { DeleteButton } from "../components/DeleteButton";
 import { IconButton } from "../components/IconButton";
 import { ltr, useI18n } from "../i18n";
+import { whatsappLink } from "../webOrders/api";
 
 interface FormState {
   id?: number;
@@ -42,11 +44,8 @@ export function Suppliers() {
   const { t } = useI18n();
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
-  const [waOpen, wa] = useDisclosure(false);
   const [qrOpen, qr] = useDisclosure(false);
   const [form, setForm] = useState<FormState>(empty);
-  const [target, setTarget] = useState<Supplier | null>(null);
-  const [message, setMessage] = useState("");
   const [confirmUnlink, setConfirmUnlink] = useState(false);
 
   const suppliers = useQuery({
@@ -54,13 +53,17 @@ export function Suppliers() {
     queryFn: () => fetchAll<Supplier>("/suppliers/"),
   });
 
+  // How the server sends order alerts. Through Meta's Cloud API there is no
+  // phone to link, so nothing to poll for.
   const status = useQuery({
     queryKey: ["whatsapp-status"],
     queryFn: async () => (await api.get<WhatsAppStatus>("/whatsapp/status/")).data,
-    refetchInterval: qrOpen ? 3000 : false,
-    enabled: qrOpen || waOpen,
+    refetchInterval: (query) => (qrOpen && query.state.data?.provider !== "cloud" ? 3000 : false),
+    enabled: qrOpen,
     retry: false,
   });
+  const statusFailure = (status.error as AxiosError<WhatsAppStatus> | null)?.response?.data;
+  const cloud = status.data?.provider === "cloud";
 
   const save = useMutation({
     mutationFn: async (f: FormState) => {
@@ -79,24 +82,6 @@ export function Suppliers() {
       notifications.show({ message: t.suppliers.saved, color: "green" });
     },
     onError: () => notifications.show({ message: t.common.saveFailed, color: "red" }),
-  });
-
-  const send = useMutation({
-    mutationFn: async () =>
-      api.post(`/suppliers/${target!.id}/whatsapp/`, { message }),
-    onSuccess: () => {
-      wa.close();
-      setMessage("");
-      notifications.show({
-        title: t.suppliers.sent,
-        message: t.suppliers.delivered(target?.name ?? ""),
-        color: "green",
-      });
-    },
-    onError: (err: any) => {
-      const detail = err?.response?.data?.detail ?? t.suppliers.sendFailed;
-      notifications.show({ title: t.suppliers.error, message: detail, color: "red" });
-    },
   });
 
   // Unlinking drops the server from the phone's Linked devices; the status
@@ -168,15 +153,16 @@ export function Suppliers() {
                 <Table.Td>{s.address || "—"}</Table.Td>
                 <Table.Td>
                   <Group gap="xs">
+                    {/* Opens the chat in WhatsApp on this PC, from the shop's own number. */}
                     <Button
                       size="xs"
                       color="green"
+                      component="a"
+                      href={s.whatsapp ? whatsappLink(s.whatsapp) : undefined}
+                      target="_blank"
+                      title={t.suppliers.openChat}
                       leftSection={<IconBrandWhatsapp size={16} />}
-                      onClick={() => {
-                        setTarget(s);
-                        setMessage("");
-                        wa.open();
-                      }}
+                      disabled={!s.whatsapp}
                     >
                       {t.common.whatsapp}
                     </Button>
@@ -247,42 +233,28 @@ export function Suppliers() {
         </Stack>
       </Modal>
 
-      {/* Send WhatsApp message */}
-      <Modal
-        opened={waOpen}
-        onClose={wa.close}
-        title={t.suppliers.messageTitle(target?.name ?? "")}
-      >
-        <Stack>
-          <Text size="sm" c="dimmed">
-            {t.suppliers.to(ltr(target?.phone_number ?? ""))}
-          </Text>
-          <Textarea
-            label={t.suppliers.message}
-            minRows={4}
-            autosize
-            value={message}
-            onChange={(e) => setMessage(e.currentTarget.value)}
-            placeholder={t.suppliers.messagePlaceholder}
-          />
-          <Button
-            color="green"
-            leftSection={<IconBrandWhatsapp size={16} />}
-            loading={send.isPending}
-            disabled={!message.trim()}
-            onClick={() => send.mutate()}
-          >
-            {t.suppliers.send}
-          </Button>
-        </Stack>
-      </Modal>
-
-      {/* WhatsApp pairing / status */}
+      {/* How order alerts go out: Meta's Cloud API, or the sidecar's pairing */}
       <Modal opened={qrOpen} onClose={closeQr} title={t.suppliers.connection}>
         <Stack align="center">
           {status.isLoading && <Loader />}
-          {status.isError && <Alert color="red">{t.suppliers.unreachable}</Alert>}
-          {status.data?.connected && (
+          {status.isError && (
+            <Alert color="red">
+              {statusFailure?.provider === "cloud"
+                ? t.suppliers.cloudDown(statusFailure.error ?? "")
+                : t.suppliers.unreachable}
+            </Alert>
+          )}
+          {cloud && status.data?.connected && (
+            <>
+              <Badge color="green" size="lg">
+                {t.suppliers.connected}
+              </Badge>
+              <Text size="sm" c="dimmed" ta="center">
+                {t.suppliers.cloudSender(ltr(`+${status.data.number ?? ""}`))}
+              </Text>
+            </>
+          )}
+          {!cloud && status.data?.connected && (
             <>
               <Badge color="green" size="lg">
                 {t.suppliers.connected}
@@ -318,7 +290,7 @@ export function Suppliers() {
               )}
             </>
           )}
-          {status.data && !status.data.connected && status.data.qr && (
+          {!cloud && status.data && !status.data.connected && status.data.qr && (
             <>
               <Text size="sm" c="dimmed" ta="center">
                 {t.suppliers.scanHint}
@@ -326,7 +298,7 @@ export function Suppliers() {
               <Image src={status.data.qr} alt={t.suppliers.qrAlt} w={260} h={260} />
             </>
           )}
-          {status.data && !status.data.connected && !status.data.qr && (
+          {!cloud && status.data && !status.data.connected && !status.data.qr && (
             <Text c="dimmed">{t.suppliers.waitingQr}</Text>
           )}
         </Stack>

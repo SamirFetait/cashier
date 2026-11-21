@@ -30,6 +30,11 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       WHATSAPP_SERVICE_URL: http://whatsapp-service:3001
       WHATSAPP_SHARED_SECRET: ${WHATSAPP_SHARED_SECRET:-change-me-shared-secret}
+      # Meta's Cloud API: set these to send order alerts through it instead of the sidecar.
+      WHATSAPP_CLOUD_TOKEN: ${WHATSAPP_CLOUD_TOKEN:-}
+      WHATSAPP_CLOUD_PHONE_ID: ${WHATSAPP_CLOUD_PHONE_ID:-}
+      WHATSAPP_CLOUD_WABA_ID: ${WHATSAPP_CLOUD_WABA_ID:-}
+      WHATSAPP_CLOUD_APP_ID: ${WHATSAPP_CLOUD_APP_ID:-}
       DEFAULT_COUNTRY_CODE: ${DEFAULT_COUNTRY_CODE:-20}
       BRANCH_CODE: ${BRANCH_CODE:-BR001}
       BRANCH_NAME: ${BRANCH_NAME:-Main Branch}

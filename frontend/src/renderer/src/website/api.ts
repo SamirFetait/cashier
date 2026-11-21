@@ -108,6 +108,8 @@ export interface WebsiteHealth {
   /** Whether order alerts can reach the shop's WhatsApp. Numbers are digits. */
   whatsapp?: {
     alerts: boolean;
+    /** Meta's Cloud API, or the sidecar's linked account (older servers say nothing). */
+    provider?: "cloud" | "sidecar";
     to: string;
     connected: boolean;
     from: string;

@@ -10,7 +10,7 @@ from apps.suppliers.views import SupplierViewSet
 from apps.orders.views import OrderViewSet, ReturnViewSet
 from apps.shifts.views import CashMovementViewSet, ShiftViewSet
 from apps.purchasing.views import GoodsReceiptViewSet, PurchaseOrderViewSet, StockTakeViewSet
-from apps.whatsapp.views import WhatsAppStatusView, WhatsAppUnlinkView, SupplierWhatsAppView
+from apps.whatsapp.views import WhatsAppStatusView, WhatsAppUnlinkView
 from apps.reports.views import (
     SummaryView, MonthlySalesView, LowStockView, MarginReportView,
     CashierReportView, HourlySalesView, DailySalesView, SalesCsvView,
@@ -43,7 +43,6 @@ api_patterns = [
     path("auth/me/", MeView.as_view(), name="me"),
     path("whatsapp/status/", WhatsAppStatusView.as_view(), name="whatsapp-status"),
     path("whatsapp/unlink/", WhatsAppUnlinkView.as_view(), name="whatsapp-unlink"),
-    path("suppliers/<int:pk>/whatsapp/", SupplierWhatsAppView.as_view(), name="supplier-whatsapp"),
     path("reports/summary/", SummaryView.as_view(), name="reports-summary"),
     path("reports/monthly-sales/", MonthlySalesView.as_view(), name="reports-monthly-sales"),
     path("reports/low-stock/", LowStockView.as_view(), name="reports-low-stock"),
